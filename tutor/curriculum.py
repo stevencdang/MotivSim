@@ -84,7 +84,7 @@ class Step:
         self.section_id = section_id
         self.prob_id = prob_id
         self.kcs = []
-        self.hint_avail = hints
+        self.hints_avail = hints
         # Distribution of time to solve this step
         self.m_time = m_time
         self.sd_time = sd_time
@@ -189,6 +189,7 @@ class SimpleCurriculum(Curriculum):
             step = Step(self.domain_id, self._id, 
                         problem.unit_id, problem.section_id, 
                         problem._id, m_time, sd_time)
+            step.kcs = [kc]
             steps.append(step)
         return steps
 
