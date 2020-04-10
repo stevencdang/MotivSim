@@ -11,6 +11,7 @@ from .simulation import Simulation
 from tutor.tutor import SimpleTutor
 from learner.random_learner import RandomLearner
 from tutor.action import Attempt, HintRequest
+from context.context import SimpleTutorContext
 
 logger = logging.getLogger(__name__)
 
@@ -41,21 +42,25 @@ class SimpleTutorSimulation(Simulation):
                     return False
 
         # Update Context
-        kc = self.tutor.state.step.kcs[0]
+        context = SimpleTutorContext(self.tutor.state.problem, 
+                                     self.tutor.state.step,
+                                     self.tutor.state.hints_avail,
+                                     self.tutor.state.hints_used,
+                                     self.tutor.session.last_input_time,
+                                     self.tutor.state.step.kcs[0],
+                                     self.tutor.state.attempt
+                                     )
+
 
         # Simulate Learner decision
-        plt = self.tutor.state.mastery[kc]
-        result = random.choices([True, False], weights=[plt, (1-plt)], k=1)
-        if result:
-            action = Attempt(12, result)
-        else:
-            a1 = Attempt(12, result)
-            a2 = HintRequest(15)
-            action = random.choice([a1, a2])
-        logger.debug("User action is correct?: %s" % str(result))
-
+        actions = [Attempt]
+        if context.hints_avail > 0:
+            actions.append(HintRequest)
+        action = self.student.choose_action(actions, context)
+        act = self.student.perform_action(action, context)
+        
         # Simulate Learning interaction with tutor
-        self.tutor.process_input(action)
+        self.tutor.process_input(act)
         has_prob = self.tutor.get_next_prob()
 
         # Return true for completing iteration
@@ -67,5 +72,4 @@ class SimpleTutorSimulation(Simulation):
         has_next = self.next()
         while has_next:
             has_next = self.next()
-
         self.end()
