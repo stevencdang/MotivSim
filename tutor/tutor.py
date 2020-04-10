@@ -1,10 +1,14 @@
 # Definition of a simulated tutor managing internal state
+# Add project root to python path
+import sys
+sys.path.append('..')
 
 import logging
 import uuid
 import random
 import datetime as dt
 from . import action
+from log_db.tutor_log import TutorInput, SessionStart, SessionEnd
 
 logger = logging.getLogger(__name__)
 
@@ -26,11 +30,14 @@ class Tutor:
             else:
                 self.session = Session()
                 self.session.login(time)
+                self.log_login()
                 logger.debug("Created session and logged user in")
         else:
             self.session = Session()
             self.session.login(time)
+            self.log_login()
             logger.debug("Created session and logged user in")
+
 
     def end_session(self, time=None):
         logger.debug("Attempting end session")
@@ -40,11 +47,21 @@ class Tutor:
             else:
                 logger.debug("Logging user out of  session")
                 self.session.logout(time)
+                self.log_logout()
         else:
             logger.error("Can't end session because no session exists")
 
     def init_student_model(self):
         pass
+
+    def log_login(self):
+        logger.debug("Logging start of new session")
+        tx = SessionStart(self.session.login_time)
+
+    def log_logout(self):
+        logger.debug("Logging end of session")
+        tx = SessionEnd(self.session.logout_time)
+
 
 
 
@@ -131,7 +148,7 @@ class SimpleTutor(Tutor):
                 self.state.step = avail_steps[0]
                 self.state.hints_avail = self.state.step.hints_avail
                 self.state.hints_used = 0
-                self.state.first_attempt = True
+                self.state.attempt = 0
                 self.state.completed[self.state.unit][self.state.section][self.state.problem][self.state.step] = False
             else:
                 raise Exception("no additional steps available")
@@ -148,21 +165,24 @@ class SimpleTutor(Tutor):
             raise Exception("Cannot get lsit of mastered kcs because section is not specified")
 
     def process_input(self, inpt):
+        # Increment clock to time inpt occured
+        self.session.increment_time(inpt.time)
         if isinstance(inpt, action.Attempt):
             logger.debug("Processing student attempt and updating kc specific pL0")
-            logger.debug(self.state.problem.kcs)
-            logger.debug(self.state.step.kcs)
             kc = self.state.step.kcs[0]
-            logger.debug("Updating kc: %s\tpknow: %f" % (str(kc._id), self.state.mastery[kc]))
-                    
-            if self.state.first_attempt:
+            plt = self.state.mastery[kc]
+
+            if self.state.attempt == 0:
                 logger.debug("Is first attempt. updating skill")
                 self.update_skill(kc, inpt.is_correct)
-                self.state.first_attempt = False
             else:
                 logger.debug("Is not first attempt")
 
-            self.session.increment_time(inpt.time)
+            plt1 = self.state.mastery[kc]
+            self.log_input(inpt, plt, plt1)
+            self.state.attempt = self.state.attempt + 1
+            
+            # Increment step or problem if problem is complete
             if inpt.is_correct:
                 try:
                     self.get_next_step()
@@ -173,13 +193,19 @@ class SimpleTutor(Tutor):
         elif isinstance(inpt, action.HintRequest):
             logger.debug("Processing student hint request")
             logger.debug("Hints avail: %i\tHints use: %s" % (self.state.hints_avail, self.state.hints_used))
-            if self.state.first_attempt:
+
+            kc = self.state.step.kcs[0]
+            plt = self.state.mastery[kc]
+
+            if self.state.attempt == 0:
                 logger.debug("Is first attempt. updating skill")
-                kc = self.state.step.kcs[0]
                 self.update_skill(kc, False)
-                self.state.first_attempt = False
             else:
                 logger.debug("Is not first attempt")
+
+            plt1 = self.state.mastery[kc]
+            self.log_input(inpt, plt, plt1)
+            self.state.attempt = self.state.attempt + 1
 
             if self.state.hints_avail > 0: 
                 self.state.hints_used = self.state.hints_used + 1
@@ -201,11 +227,56 @@ class SimpleTutor(Tutor):
         logger.debug("Outcome: %s\tPrior plt: %f\t updated plt: %f" % (str(is_correct), plt, plt1))
 
 
-    def log_input(self, inpt):
+    def log_input(self, inpt, plt, plt1):
         if isinstance(inpt, action.Attempt):
-            logger.debug("Processing student attempt and updating kc specific pL0")
+            logger.debug("Logging student attempt")
+            if inpt.is_correct:
+                outcome = "Correct"
+            else:
+                outcome = "Incorrect"
+
+            kc = self.state.step.kcs[0]
+            tx = TutorInput(self.session.last_input_time,
+                            self.curric._id,
+                            self.state.unit._id,
+                            self.state.section._id,
+                            self.state.problem._id,
+                            self.state.step._id,
+                            self.stu_id,
+                            inpt.time,
+                            outcome,
+                            self.state.step.kcs,
+                            plt,
+                            plt1,
+                            self.state.hints_used,
+                            self.state.hints_avail,
+                            self.state.attempt
+                 )
+
+
+
         elif isinstance(inpt, action.HintRequest):
-            logger.debug("Processing student hint request")
+            logger.debug("Logging student hint request")
+            kc = self.state.step.kcs[0]
+            outcome = "Hint"
+            tx = TutorInput(self.session.last_input_time,
+                            self.curric._id,
+                            self.state.unit._id,
+                            self.state.section._id,
+                            self.state.problem._id,
+                            self.state.step._id,
+                            self.stu_id,
+                            inpt.time,
+                            outcome,
+                            self.state.step.kcs,
+                            plt,
+                            plt1,
+                            self.state.hints_used,
+                            self.state.hints_avail,
+                            self.state.attempt
+                 )
+
+
         else:
             raise IOError("Unable to generate log entry for input of type: %s" % str(type(inpt)))
 
@@ -305,11 +376,12 @@ class SimpleTutorState:
         self.mastery = {}
         self.unit = None
         self.section = None
-        self.prob = None
+        self.problem = None
         self.step = None
         self.hints_avail = None
         self.hints_used = None
         self.first_attempt = None
+        self.attempt = None
 
     def has_started(self):
         if self.prob == None:
