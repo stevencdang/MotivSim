@@ -1,0 +1,6 @@
+[motivsim]
+url = localhost
+pswd = 
+user = 
+port = 27017
+dbname = motivsim
