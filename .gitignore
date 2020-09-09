@@ -6,3 +6,7 @@ __pycache__
 
 # local Virtualenv
 venv 
+
+
+# Settings for local simulation
+mongo_settings.cfg
