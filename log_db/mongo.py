@@ -3,32 +3,38 @@
 # Author: Steven Dang stevencdang.com
 
 # Requires pymongo
-from sets import Set
 from pymongo import MongoClient
 from pymongo.errors import DuplicateKeyError
 from os import mkdir, listdir, path
-from file import file_manager
-from db import mongo_settings
-import ConfigParser
+# from file import file_manager
+# from db import mongo_settings
+import configparser
 
-SETTINGS_PATH = "mongo_settings.cfg"
+SETTINGS_PATH = "../mongo_settings.cfg"
 
 
-def get_db(name):
+def get_db_params(name):
   """
   Connect to a mongo db using the settings stored for the given name
 
   """
   global SETTINGS_PATH
-  cfg = ConfigParser.ConfigParser()
+  cfg = configparser.ConfigParser()
   with open(SETTINGS_PATH, 'r') as f:
-    cfg.readfp(f)
+    cfg.read_file(f)
     url = cfg.get(name, "url")
     port = cfg.get(name, "port")
     dbname = cfg.get(name, "dbname")
     user = cfg.get(name, "user")
     pswd = cfg.get( name, "pswd")
-    return connect(url, port, dbname, user, pswd)
+    db_params = {'settingId': name,
+                 'url': url,
+                 'port': port,
+                 'name': dbname,
+                 'user': user,
+                 'pswd': pswd
+                 }
+    return db_params
 
 
 def connect(dbUrl, dbPort, dbName, dbUser=None, dbPswd=None):
@@ -62,33 +68,42 @@ class Data_Utility:
     Utility functions for mass database operations
 
     """
-    def __init__(self, data_path='data', db_name="motivsim"):
+    def __init__(self, data_path='data', db_params=None):
         """
         Constructor that sets the data root directory of the utility
         and the parameters of the database to operate on
 
         """
+        default_db_name = "motivsim"
         my_path = path.abspath(data_path)
         self.path = my_path
+        
+        if db_params is None:
+            self.db_params = get_db_params(default_db_name)
+        else:
+            self.db_params = db_params
 
-        self.db_params = db_params
-        self.db = get_db(self.db_name)
+        self.db = connect(self.db_params['url'], 
+                          self.db_params['port'], 
+                          self.db_params['name'], 
+                          self.db_params['user'], 
+                          self.db_params['pswd'])
 
     def dump_db(self, data_dir=None):
         # Ensure data dump directory exists
         if data_dir is None:
             data_dir = self.path
         if not path.exists(data_dir):
-            mkdir(data_dir, 0774)
+            mkdir(data_dir, 0o774)
 
         # set up the connnection
         allCollections = [col for col in self.db.collection_names() if col not in default_collections]
-        print "list of collections: "
+        print("list of collections: ")
         for col in allCollections:
-            print "collection name: " + col
+            print( "collection name: " + col)
             docs = self.db[col].find()
             data = [doc for doc in docs]
-            file_manager.write_json_to_file(data, data_dir, col)
+            # file_manager.write_json_to_file(data, data_dir, col)
 
     def restore_db(self):
         files = listdir(self.path)
@@ -97,30 +112,32 @@ class Data_Utility:
         for file_name in files:
             file_path = path.join(self.dir_name, file_name)
             col = file_name.split('.json')[0]
-            print "writing to data to collection " + col + \
-                " in db: " + self.db_params['dbName']
+            print("writing to data to collection %s in db: %s" % (col, self.db_params['name']))
             if col != 'users':
                 data = self.decode_json_file(file_path)
                 if col not in existing_cols:
-                    print "creating collection: " + col
+                    print( "creating collection: " + col)
                     self.db.create_collection(col)
                 else:
-                    print "inserting into existing collection"
+                    print( "inserting into existing collection")
                 try:
                     if data:
                         self.db[col].insert(data, continue_on_error=True)
                 except DuplicateKeyError:
-                    print "Attempted insert of document with duplicate key"
+                    print("Attempted insert of document with duplicate key")
                 else:
-                    print "success"
+                    print("success")
             else:
-                print "not writing users to db"
+                print("not writing users to db")
 
     def clear_db(self):
         cols = self.db.collection_names()
+        print("all collections in db: %s" % str(cols))
         clear_cols = [col for col in cols if col not in default_collections]
+
         for col in clear_cols:
             # Remove all docs from collection
+            print("Clearing all documents from collection %s" % col)
             self.db[col].remove()
 
     def get_data(self, collection, fields=None, filters=None):
@@ -163,33 +180,13 @@ class Data_Utility:
         
         return base_data
   
-    def get_ideas(self):
-        """
-        Get a list of all the ideas
-
-        """
-        fields = ['content', 'clusterIDs', 'isGamechanger',
-                  'userID', 'promptID']
-        return self.get_data("ideas", fields)
-
-    def get_clusters(self):
-        """
-        Get a list of all the ideas
-
-        """
-        fields = ['name', ]
-        return self.get_data("clusters", fields)
-
-    def get_users(self):
-        """
-        Get a list of all the ideas
-
-        """
-        fields = ['name', ]
-        return self.get_data("myUsers", fields)
 
 
 if __name__ == '__main__':
-    # db = get_db(chi1)
-    util = Data_Utility('data/facPilot', ideagens)
+    data_path = "test/data"
+    db_name = "motivsim"
+    db_params  = get_db_params(db_name)
+    print("got db params: %s" % str(db_params))
+    util = Data_Utility(data_path, db_params)
     # util.dump_db()
+    # util.clear_db()
