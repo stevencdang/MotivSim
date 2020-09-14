@@ -9,6 +9,7 @@ import random
 import datetime as dt
 from . import action
 from log_db.tutor_log import TutorInput, SessionStart, SessionEnd
+from log_db import mongo
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,17 @@ class Tutor:
         self.mastery_thres = 0.95
         self.state = None
         self.session = None
+
+        # Initialize connection to database
+        self.db_params = mongo.get_db_params()
+        self.db = mongo.connect(self.db_params['url'], 
+                          self.db_params['port'], 
+                          self.db_params['name'], 
+                          self.db_params['user'], 
+                          self.db_params['pswd'])
+
+
+
 
     def start_new_session(self, time=None):
         logger.debug("Attempting Starting new session")
@@ -57,10 +69,14 @@ class Tutor:
     def log_login(self):
         logger.debug("Logging start of new session")
         tx = SessionStart(self.session.login_time)
+        tx._id = self.db.tutor_events.insert_one(tx.__dict__)
+        logger.info("session start: %s" % str(tx.__dict__))
 
     def log_logout(self):
         logger.debug("Logging end of session")
         tx = SessionEnd(self.session.logout_time)
+        tx._id = self.db.tutor_events.insert_one(tx.__dict__)
+        logger.info("session end: %s" % str(tx.__dict__))
 
 
 
@@ -234,58 +250,33 @@ class SimpleTutor(Tutor):
                 outcome = "Correct"
             else:
                 outcome = "Incorrect"
-
-            kc = self.state.step.kcs[0]
-            tx = TutorInput(self.session.last_input_time,
-                            self.curric._id,
-                            self.state.unit._id,
-                            self.state.section._id,
-                            self.state.problem._id,
-                            self.state.step._id,
-                            self.stu_id,
-                            inpt.time,
-                            outcome,
-                            self.state.step.kcs,
-                            plt,
-                            plt1,
-                            self.state.hints_used,
-                            self.state.hints_avail,
-                            self.state.attempt
-                 )
-
-
-
         elif isinstance(inpt, action.HintRequest):
             logger.debug("Logging student hint request")
-            kc = self.state.step.kcs[0]
             outcome = "Hint"
-            tx = TutorInput(self.session.last_input_time,
-                            self.curric._id,
-                            self.state.unit._id,
-                            self.state.section._id,
-                            self.state.problem._id,
-                            self.state.step._id,
-                            self.stu_id,
-                            inpt.time,
-                            outcome,
-                            self.state.step.kcs,
-                            plt,
-                            plt1,
-                            self.state.hints_used,
-                            self.state.hints_avail,
-                            self.state.attempt
-                 )
-
-
         else:
             raise IOError("Unable to generate log entry for input of type: %s" % str(type(inpt)))
 
-
-
-
-
-
-                           
+        kc = self.state.step.kcs[0]
+        tx = TutorInput(self.session.last_input_time,
+                        self.curric._id,
+                        self.state.unit._id,
+                        self.state.section._id,
+                        self.state.problem._id,
+                        self.state.step._id,
+                        self.stu_id,
+                        inpt.time,
+                        outcome,
+                        self.state.step.kcs,
+                        plt,
+                        plt1,
+                        self.state.hints_used,
+                        self.state.hints_avail,
+                        self.state.attempt
+             )
+        
+        tx._id = self.db.tutor_events.insert_one(tx.to_dict()).inserted_id
+        logger.info("User Transaction: %s" % tx)
+ 
 
 class Session:
 

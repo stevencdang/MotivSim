@@ -9,11 +9,12 @@ from os import mkdir, listdir, path
 # from file import file_manager
 # from db import mongo_settings
 import configparser
+import random
 
 SETTINGS_PATH = "../mongo_settings.cfg"
 
 
-def get_db_params(name):
+def get_db_params(name='motivsim'):
   """
   Connect to a mongo db using the settings stored for the given name
 
@@ -103,7 +104,22 @@ class Data_Utility:
             print( "collection name: " + col)
             docs = self.db[col].find()
             data = [doc for doc in docs]
+
+            print("Have %i documents in collection: %s" % (len(data), col))
             # file_manager.write_json_to_file(data, data_dir, col)
+
+    def sample_doc(self, num=1):
+        # set up the connnection
+        allCollections = [col for col in self.db.collection_names() if col not in default_collections]
+        for col in allCollections:
+            print( "collection name: " + col)
+            docs = self.db[col].find()
+            data = [doc for doc in docs]
+            samples = random.sample(data, num)
+            for sample in samples:
+                print("sample doc: %s" % str(sample))
+
+
 
     def restore_db(self):
         files = listdir(self.path)
@@ -183,10 +199,12 @@ class Data_Utility:
 
 
 if __name__ == '__main__':
-    data_path = "test/data"
+    # Intended to be tested from within the module directory
+    data_path = "../test/data"
     db_name = "motivsim"
     db_params  = get_db_params(db_name)
     print("got db params: %s" % str(db_params))
     util = Data_Utility(data_path, db_params)
-    # util.dump_db()
+    util.dump_db()
+    util.sample_doc(3)
     # util.clear_db()

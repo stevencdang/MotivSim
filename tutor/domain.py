@@ -24,6 +24,9 @@ class KC:
         self.m_time = m_time
         self.sd_time = sd_time
 
+    def __str__(self):
+        return str(self.__dict__)
+
 
 class Domain:
 
