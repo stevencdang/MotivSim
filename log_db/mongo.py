@@ -10,9 +10,14 @@ from os import mkdir, listdir, path
 # from db import mongo_settings
 import configparser
 import random
+import logging
+import json
+
+from .tutor_log import TransactionEncoder
 
 SETTINGS_PATH = "../mongo_settings.cfg"
 
+logger = logging.getLogger(__name__)
 
 def get_db_params(name='motivsim'):
   """
@@ -63,6 +68,20 @@ default_collections = [
     'system.users',
 ]
 
+def write_json_to_file(data='', dir_path='data', file_name='default'):
+    logger.info("writing to directory: %s" % dir_path)
+    if not path.exists(dir_path):
+        mkdir(dir_path, 0o774)
+    # Create file path
+    file_path = path.join(dir_path, file_name + '.json')
+    logger.debug("writing to: %s" % file_path)
+    # Write data to file
+    resultsFile = open(file_path,'w')
+    resultsFile.write(
+        json.dumps(data, indent=2, cls=TransactionEncoder)
+    )
+    resultsFile.close()
+
 
 class Data_Utility:
     """
@@ -99,25 +118,28 @@ class Data_Utility:
 
         # set up the connnection
         allCollections = [col for col in self.db.collection_names() if col not in default_collections]
-        print("list of collections: ")
+        logger.debug("list of collections: ")
         for col in allCollections:
-            print( "collection name: " + col)
+            logger.debug( "collection name: " + col)
             docs = self.db[col].find()
             data = [doc for doc in docs]
 
-            print("Have %i documents in collection: %s" % (len(data), col))
-            # file_manager.write_json_to_file(data, data_dir, col)
+            logger.debug("Have %i documents in collection: %s" % (len(data), col))
+            write_json_to_file(data, data_dir, col)
 
     def sample_doc(self, num=1):
         # set up the connnection
         allCollections = [col for col in self.db.collection_names() if col not in default_collections]
         for col in allCollections:
-            print( "collection name: " + col)
+            logger.debug( "collection name: " + col)
             docs = self.db[col].find()
             data = [doc for doc in docs]
-            samples = random.sample(data, num)
-            for sample in samples:
-                print("sample doc: %s" % str(sample))
+            if len(data) > num:
+                samples = random.sample(data, num)
+                for sample in samples:
+                    logger.debug("sample doc: %s" % str(sample))
+            else:
+                logger.info("collection has no documents to sample")
 
 
 
@@ -128,32 +150,32 @@ class Data_Utility:
         for file_name in files:
             file_path = path.join(self.dir_name, file_name)
             col = file_name.split('.json')[0]
-            print("writing to data to collection %s in db: %s" % (col, self.db_params['name']))
+            logger.debug("writing to data to collection %s in db: %s" % (col, self.db_params['name']))
             if col != 'users':
                 data = self.decode_json_file(file_path)
                 if col not in existing_cols:
-                    print( "creating collection: " + col)
+                    logger.debug( "creating collection: " + col)
                     self.db.create_collection(col)
                 else:
-                    print( "inserting into existing collection")
+                    logger.debug( "inserting into existing collection")
                 try:
                     if data:
                         self.db[col].insert(data, continue_on_error=True)
                 except DuplicateKeyError:
-                    print("Attempted insert of document with duplicate key")
+                    logger.debug("Attempted insert of document with duplicate key")
                 else:
-                    print("success")
+                    logger.debug("success")
             else:
-                print("not writing users to db")
+                logger.debug("not writing users to db")
 
     def clear_db(self):
         cols = self.db.collection_names()
-        print("all collections in db: %s" % str(cols))
+        logger.debug("all collections in db: %s" % str(cols))
         clear_cols = [col for col in cols if col not in default_collections]
 
         for col in clear_cols:
             # Remove all docs from collection
-            print("Clearing all documents from collection %s" % col)
+            logger.debug("Clearing all documents from collection %s" % col)
             self.db[col].remove()
 
     def get_data(self, collection, fields=None, filters=None):
@@ -203,7 +225,7 @@ if __name__ == '__main__':
     data_path = "../test/data"
     db_name = "motivsim"
     db_params  = get_db_params(db_name)
-    print("got db params: %s" % str(db_params))
+    logger.info("got db params: %s" % str(db_params))
     util = Data_Utility(data_path, db_params)
     util.dump_db()
     util.sample_doc(3)

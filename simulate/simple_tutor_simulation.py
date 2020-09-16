@@ -12,6 +12,8 @@ from tutor.tutor import SimpleTutor
 from learner.random_learner import RandomLearner
 from tutor.action import Attempt, HintRequest
 from context.context import SimpleTutorContext
+from log_db import mongo
+from log_db.curriculum_mapper import DB_Curriculum_Mapper
 
 logger = logging.getLogger(__name__)
 

@@ -3,6 +3,8 @@ import uuid
 from collections.abc import Iterable
 import logging
 import copy
+import json
+from uuid import UUID
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +18,17 @@ class Transaction:
     def to_dict(self):
         return self.__dict__
         
+
+class TransactionEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, UUID):
+            # if the obj is uuid, we simply return the value of uuid
+            return obj.hex
+        elif hasattr(obj, 'isoformat'):
+            return obj.isoformat() 
+        else:
+            return json.JSONEncoder.default(self, obj)
+
 
 class SessionStart(Transaction):
     

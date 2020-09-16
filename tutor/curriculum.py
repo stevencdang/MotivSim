@@ -16,6 +16,13 @@ class Curriculum:
         self.domain_id = domain._id
         self.units = []
 
+    def to_db_object(self):
+        return {'_id': self._id,
+                'domain_id': self.domain_id,
+                'units': [unit._id for unit in self.units]
+               }
+
+
 class Unit:
 
     def __init__(self,
@@ -26,6 +33,14 @@ class Unit:
         self.domain_id = domain_id
         self.sections = []
         self.kcs = []
+
+    def to_db_object(self):
+        return {'_id': self._id,
+                'domain_id': self.domain_id,
+                'curric_id': self.curric_id,
+                'sections': [section._id for section in self.sections],
+                'kcs': [kc._id for kc in self.kcs]
+               }
 
 
 class Section:
@@ -47,6 +62,16 @@ class Section:
         self.m_steps=m_steps
         self.sd_steps=sd_steps
 
+    def to_db_object(self):
+        return {'_id': self._id,
+                'domain_id': self.domain_id,
+                'curric_id': self.curric_id,
+                'unit_id': self.unit_id,
+                'problems': [problem._id for problem in self.problems],
+                'kcs': [kc._id for kc in self.kcs],
+                'm_steps': self.m_steps,
+                'sd_steps': self.sd_steps
+               }
 
 class Problem:
 
@@ -64,6 +89,15 @@ class Problem:
         self.steps = []
         self.kcs = []
 
+    def to_db_object(self):
+        return {'_id': self._id,
+                'domain_id': self.domain_id,
+                'curric_id': self.curric_id,
+                'unit_id': self.unit_id,
+                'section_id': self.section_id,
+                'steps': [step._id for step in self.steps],
+                'kcs': [kc._id for kc in self.kcs],
+               }
 
 class Step:
 
@@ -88,6 +122,20 @@ class Step:
         # Distribution of time to solve this step
         self.m_time = m_time
         self.sd_time = sd_time
+
+    def to_db_object(self):
+        return {'_id': self._id,
+                'domain_id': self.domain_id,
+                'curric_id': self.curric_id,
+                'unit_id': self.unit_id,
+                'section_id': self.section_id,
+                'prob_id': self.prob_id,
+                'kcs': [kc._id for kc in self.kcs],
+                'hints_avail': self.hints_avail,
+                'm_time': self.m_time,
+                'sd_time': self.sd_time
+               }
+
 
 
 class SimpleCurriculum(Curriculum):
