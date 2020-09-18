@@ -13,7 +13,11 @@ class Learner:
     def __init__(self, domain):
         self._id = uuid.uuid4()
         self.domain_id = domain._id
-        self.skills = None
+        self.cur_context = None
+        self.new_context = False
+        self.state = LearnerState()
+
+        self.skills = {skill._id: random.choices([True, False], weights=[skill.pl0, (1-skill.pl0)])[0] for skill in domain.kcs}
 
     def practice_skill(self, skill):
         # Update skill
@@ -26,10 +30,14 @@ class Learner:
             if learned:
                 self.skills[skill._id] = learned
 
-    def choose_action(self, actions, context):
+    def update_context(self, context):
+        self.cur_context = context
+        self.new_context = True
+
+    def choose_action(self):
         pass
 
-    def perform_action(self, action, context):
+    def perform_action(self):
         pass
 
     def update_state(self):
@@ -40,3 +48,10 @@ class Learner:
 
     def calc_value(self, action, context):
         pass
+
+
+class LearnerState:
+
+    def is_off_task(self):
+        return False 
+

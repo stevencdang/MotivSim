@@ -31,9 +31,6 @@ class Tutor:
                           self.db_params['user'], 
                           self.db_params['pswd'])
 
-
-
-
     def start_new_session(self, time=None):
         logger.debug("Attempting Starting new session")
         if self.session is not None:
@@ -49,6 +46,10 @@ class Tutor:
             self.session.login(time)
             self.log_login()
             logger.debug("Created session and logged user in")
+
+    def process_input(self, inpt):
+        # This method should take the input, evaluate it, update internal state, and provide feedback
+        pass
 
 
     def end_session(self, time=None):
@@ -183,7 +184,7 @@ class SimpleTutor(Tutor):
     def process_input(self, inpt):
         # Increment clock to time inpt occured
         self.session.increment_time(inpt.time)
-        if isinstance(inpt, action.Attempt):
+        if isinstance(inpt, action.Attempt) or isinstance(inpt, action.Guess):
             logger.debug("Processing student attempt and updating kc specific pL0")
             kc = self.state.step.kcs[0]
             plt = self.state.mastery[kc]
@@ -228,6 +229,8 @@ class SimpleTutor(Tutor):
                 self.state.hints_avail = self.state.hints_avail - 1
             else:
                 logger.warning("No additional hints available")
+        elif isinstance(inpt, action.OffTask):
+            logger.debug("Processing student Offtask")
         else:
             raise IOError("Unable to process input of type: %s" % str(type(inpt)))
 
@@ -244,7 +247,7 @@ class SimpleTutor(Tutor):
 
 
     def log_input(self, inpt, plt, plt1):
-        if isinstance(inpt, action.Attempt):
+        if isinstance(inpt, action.Attempt) or isinstance(inpt, action.Guess):
             logger.debug("Logging student attempt")
             if inpt.is_correct:
                 outcome = "Correct"
@@ -267,13 +270,13 @@ class SimpleTutor(Tutor):
                         inpt.time,
                         outcome,
                         self.state.step.kcs,
-                        plt,
-                        plt1,
-                        self.state.hints_used,
-                        self.state.hints_avail,
-                        self.state.attempt
-             )
-        
+                            plt,
+                            plt1,
+                            self.state.hints_used,
+                            self.state.hints_avail,
+                            self.state.attempt
+                 )
+            
         tx._id = self.db.tutor_events.insert_one(tx.to_dict()).inserted_id
         logger.info("User Transaction: %s" % tx)
  

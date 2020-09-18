@@ -1,4 +1,4 @@
-# Class for a test student that makes decisions randomly
+# Class for a student that makes decisions using primarily self-efficacy
 # Add project root to python path
 import sys
 sys.path.append('..')
@@ -7,12 +7,16 @@ import logging
 import random
 import inspect
 
-from .learner import Learner
+from .learner import Learner, LearnerState
 from tutor.action import *
 
 logger = logging.getLogger(__name__)
 
-class RandomLearner(Learner):
+class SelfEfficacyLearner(Learner):
+
+    def __init__(self, domain):
+        super().__init__(domain)
+        self.state = SelfEfficacyLearnerState()
 
     def choose_action(self):
         actions = self.cur_context.get_actions()
@@ -24,7 +28,7 @@ class RandomLearner(Learner):
         kc = self.cur_context.kc
         logger.debug("Action is %s" % str(action))
         if action == Attempt:
-            logger.debug("Aciton is attempt")
+            logger.debug("Action is attempt")
             time = random.gauss(kc.m_time, kc.sd_time)
             if self.skills[kc._id]:
                 weights = [(1 - kc.ps), kc.ps]
@@ -35,7 +39,7 @@ class RandomLearner(Learner):
             act = Attempt(time, is_correct)
             
         elif action == HintRequest:
-            logger.debug("Aciton is HintRequest")
+            logger.debug("Action is HintRequest")
             time = random.gauss(kc.m_time, kc.sd_time)
             act = HintRequest(time)
         elif action == Guess:
@@ -73,3 +77,16 @@ class RandomLearner(Learner):
 
     def calc_value(self, action, context):
         pass
+
+    def is_off_task(self):
+        return self.state.is_off_task()
+
+
+class SelfEfficacyLearnerState(LearnerState):
+
+    def __init__(self):
+        self.off_task = False
+
+    def is_off_task(self):
+        return self.off_task
+

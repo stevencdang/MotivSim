@@ -9,20 +9,21 @@ from datetime import datetime as dt
 from tutor.domain import Domain
 from .simulation import Simulation
 from tutor.tutor import SimpleTutor
+from learner.selfeff_learner import SelfEfficacyLearner
 from learner.random_learner import RandomLearner
-from tutor.action import OffTask
+from tutor.action import Attempt, HintRequest
 from context.context import SimpleTutorContext
 from log_db import mongo
 from log_db.curriculum_mapper import DB_Curriculum_Mapper
 
 logger = logging.getLogger(__name__)
 
-class SimpleTutorSimulation(Simulation):
+class SelfEffSimulation(Simulation):
     
     def __init__(self, domain=None, curric=None, student=None):
         super().__init__(domain, curric)
         if student is None:
-            self.student = RandomLearner(domain)
+            self.student = SelfEfficacyLearner(domain)
         else:
             self.student = student
         self.tutor = SimpleTutor(self.curric, self.student._id)
