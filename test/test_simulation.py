@@ -11,6 +11,7 @@ from tutor.domain import Domain
 from tutor.curriculum import SimpleCurriculum
 from tutor.tutor import SimpleTutor
 from tutor.action import Attempt, HintRequest
+from learner.selfeff_learner import SelfEfficacyLearner
 from simulate.simple_tutor_simulation import SimpleTutorSimulation
 from simulate.self_eff_simulation import SelfEffSimulation
 from log_db import mongo
@@ -44,7 +45,7 @@ def test_simple_tutor():
     num_students = 2
     for i in range(num_students):
         logger.info("Simulating student #%i" % i)
-        sim = SimpleTutorSimulation(domain, curric, None)
+        sim = SimpleTutorSimulation(domain, curric, stu)
         sim.run()
     logger.info("Finished simulation. Dumping db to file")
 
@@ -74,8 +75,11 @@ def test_selfeff_learner():
     # db.curriculum.insert(domain.kcs)
     num_students = 2
     for i in range(num_students):
+        stu = SelfEfficacyLearner(domain)
+        logger.debug("inserting new student to db: %s" % str(stu.to_dict()))
+        db.students.insert_one(stu.to_dict())
         logger.info("Simulating student #%i" % i)
-        sim = SelfEffSimulation(domain, curric, None)
+        sim = SelfEffSimulation(domain, curric, stu)
         sim.run()
     logger.info("Finished simulation. Dumping db to file")
 

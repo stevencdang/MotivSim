@@ -4,6 +4,8 @@ import uuid
 import logging
 import random
 
+from log_db import mongo
+
 
 logger = logging.getLogger(__name__)
 
@@ -16,8 +18,18 @@ class Learner:
         self.cur_context = None
         self.new_context = False
         self.state = LearnerState()
+        self.type = "Generic Learner"
 
         self.skills = {skill._id: random.choices([True, False], weights=[skill.pl0, (1-skill.pl0)])[0] for skill in domain.kcs}
+
+        # Initialize connection to database
+        self.db_params = mongo.get_db_params()
+        self.db = mongo.connect(self.db_params['url'], 
+                          self.db_params['port'], 
+                          self.db_params['name'], 
+                          self.db_params['user'], 
+                          self.db_params['pswd'])
+
 
     def practice_skill(self, skill):
         # Update skill
@@ -43,11 +55,18 @@ class Learner:
     def update_state(self):
         pass
 
-    def calc_expectancy(self, action, context):
+    def calc_expectancy(self, action):
         pass
 
-    def calc_value(self, action, context):
+    def calc_value(self, action):
         pass
+
+    def to_dict(self):
+        return {'_id': str(self._id),
+                'domain_id': str(self.domain_id),
+                'type': self.type,
+                'skills': {str(sid): self.skills[sid] for sid in self.skills}
+                }
 
 
 class LearnerState:

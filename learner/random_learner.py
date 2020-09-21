@@ -14,6 +14,10 @@ logger = logging.getLogger(__name__)
 
 class RandomLearner(Learner):
 
+    def __init__(self, domain):
+        super().__init__(domain)
+        self.type = "Random Learner"
+
     def choose_action(self):
         actions = self.cur_context.get_actions()
         choice = random.choice(actions)
@@ -68,8 +72,8 @@ class RandomLearner(Learner):
     def update_state(self):
         pass
 
-    def calc_expectancy(self, action, context):
+    def calc_expectancy(self, action):
         pass
 
-    def calc_value(self, action, context):
+    def calc_value(self, action):
         pass
