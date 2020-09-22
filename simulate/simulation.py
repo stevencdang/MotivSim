@@ -56,6 +56,7 @@ class Simulation:
         pass
     
     # Static
+    @staticmethod
     def gen_domain(size=50):
         logger.info("Generating a new domain")
         domain = Domain()
@@ -63,6 +64,7 @@ class Simulation:
         return domain
    
     #Static
+    @staticmethod
     def gen_curriculum(domain, num_units=1, num_sections=1, num_practice=20):
         logger.info("Generating Curriculum with given domain")
         curric = SimpleCurriculum(domain)

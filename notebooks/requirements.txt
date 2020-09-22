@@ -1,0 +1,6 @@
+jupyterlab==1.1.4
+numpy
+scipy
+matplotlib
+pandas
+pandas-profiling

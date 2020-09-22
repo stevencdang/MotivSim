@@ -1,5 +1,6 @@
 # Python
 __pycache__
+*.pyc
 
 # Vim
 *.sw*
@@ -7,8 +8,10 @@ __pycache__
 # local Virtualenv
 venv 
 
-# Jupyter NOtebook venv
-notebooks/jupyter_venv
+# Jupyter NOtebook
+notebooks/*venv
+.ipynb_checkpoints/
+
 
 # Generated Testing data
 test/data/*
