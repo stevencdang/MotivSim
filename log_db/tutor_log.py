@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 class Transaction:
 
     def __init__(self, time):
-        self._id = uuid.uuid4()
+        self._id = str(uuid.uuid4())
         self.type = None
         self.time = time
 

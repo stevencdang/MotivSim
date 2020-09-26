@@ -70,6 +70,7 @@ class DB_Curriculum_Mapper:
     def get_from_db(self, curric_id):
         logger.info("Retrieving curriculum from database with id: %s" % curric_id)
         obj = self.db.curriculums.find_one({'_id': curric_id})
+        domain = self.db.domains.find_one({'_id': obj['domain_id']})
         logger.info(str(obj))
 
 

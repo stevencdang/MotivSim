@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 class Decision:
 
     def __init__(self, student, choice, time, action_evs, pev):
-        self._id = uuid.uuid4()
+        self._id = str(uuid.uuid4())
         self.student_id = student._id
         self.choice = choice
         self.time = time
@@ -25,14 +25,15 @@ class Decision:
 class LoggedAction:
 
     def __init__(self, student, action, time):
-        self._id = uuid.uuid4()
+        self._id = str(uuid.uuid4())
         self.student_id = student._id
         self.action = action
         self.time = time
 
     def to_dict(self):
-        result = self.__dict__
-        result['action'] = self.action.__dict__
+        result = copy.deepcopy(self.__dict__)
+        result['action'] = self.action.to_dict()
+        # result['action'] = self.action.to_dict()
         return result
         
 

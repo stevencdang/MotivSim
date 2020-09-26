@@ -69,12 +69,12 @@ default_collections = [
 ]
 
 def write_json_to_file(data='', dir_path='data', file_name='default'):
-    logger.info("writing to directory: %s" % dir_path)
+    logger.debug("writing %i documents to directory: %s" % (len(data), dir_path))
     if not path.exists(dir_path):
         mkdir(dir_path, 0o774)
     # Create file path
     file_path = path.join(dir_path, file_name + '.json')
-    logger.debug("writing to: %s" % file_path)
+    logger.info("writing %i documents to file: %s" % (len(data), file_path))
     # Write data to file
     resultsFile = open(file_path,'w')
     resultsFile.write(

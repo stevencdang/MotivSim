@@ -67,13 +67,14 @@ def test_selfeff_learner():
     db_util.clear_db()
 
     # Generating domain
-    domain = SelfEffSimulation.gen_domain(30)
+    domain = SelfEffSimulation.gen_domain(500)
+    db.domains.insert_one(domain.to_dict())
     db.kcs.insert_many([kc.__dict__ for kc in domain.kcs])
-    curric = SelfEffSimulation.gen_curriculum(domain, 1, 3, 20)
+    curric = SelfEffSimulation.gen_curriculum(domain, 5, 5, 20)
     curric_util = DB_Curriculum_Mapper(db_params)
     curric_util.write_to_db(curric)
     # db.curriculum.insert(domain.kcs)
-    num_students = 2
+    num_students = 20
     for i in range(num_students):
         stu = SelfEfficacyLearner(domain)
         logger.debug("inserting new student to db: %s" % str(stu.to_dict()))

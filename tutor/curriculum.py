@@ -11,7 +11,7 @@ class Curriculum:
 
     def __init__(self,
                  domain):
-        self._id = uuid.uuid4()
+        self._id = str(uuid.uuid4())
         self.domain = domain
         self.domain_id = domain._id
         self.units = []
@@ -23,12 +23,13 @@ class Curriculum:
                }
 
 
+
 class Unit:
 
     def __init__(self,
                  domain_id,
                  curric_id):
-        self._id = uuid.uuid4()
+        self._id = str(uuid.uuid4())
         self.curric_id = curric_id
         self.domain_id = domain_id
         self.sections = []
@@ -52,7 +53,7 @@ class Section:
                  m_steps=4,
                  sd_steps=2,
                  ):
-        self._id = uuid.uuid4()
+        self._id = str(uuid.uuid4())
         self.domain_id = domain_id
         self.curric_id = curric_id
         self.unit_id = unit_id
@@ -81,7 +82,7 @@ class Problem:
                  unit_id,
                  section_id,
                  ):
-        self._id = uuid.uuid4()
+        self._id = str(uuid.uuid4())
         self.domain_id = domain_id
         self.curric_id = curric_id
         self.unit_id = unit_id
@@ -111,7 +112,7 @@ class Step:
                  sd_time=None,
                  hints=3,
                  ):
-        self._id = uuid.uuid4()
+        self._id = str(uuid.uuid4())
         self.domain_id = domain_id
         self.curric_id = curric_id
         self.unit_id = unit_id
@@ -168,6 +169,7 @@ class SimpleCurriculum(Curriculum):
         n_unit_kcs = [n if i < (num_units - 1) else num_kcs - n*(num_units-1) for i in range(num_units)]
         logger.debug("kcs by unit: %s" % str(n_unit_kcs))
         assigned_kcs = []
+        units = []
         for n in n_unit_kcs:
             unit = Unit(self.domain_id, self._id)
 
@@ -177,7 +179,9 @@ class SimpleCurriculum(Curriculum):
             unit.kcs = kcs
             assigned_kcs.extend(kcs)
         
-            self.units.append(unit)
+            units.append(unit)
+
+        self.units = units
 
 
     def gen_sections(self, num_sections):

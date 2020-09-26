@@ -15,7 +15,7 @@ class KC:
                  pg=None, 
                  m_time=None, 
                  sd_time=None):
-        self._id = uuid.uuid4()
+        self._id = str(uuid.uuid4())
         self.domain_id = did
         self.pl0 = pl0
         self.pt = pt
@@ -31,7 +31,7 @@ class KC:
 class Domain:
 
     def __init__(self):
-        self._id = uuid.uuid4()
+        self._id = str(uuid.uuid4())
         self.kcs = []
 
     def generate_kcs(self, n, 
@@ -61,3 +61,8 @@ class Domain:
             self.kcs.append(kc)
 
         logger.debug("generated %i kcs" % len(self.kcs))
+
+    def to_dict(self):
+        return {'_id': self._id,
+                'kcs': [kc._id for kc in self.kcs]
+                }

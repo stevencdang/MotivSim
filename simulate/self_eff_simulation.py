@@ -30,35 +30,20 @@ class SelfEffSimulation(Simulation):
         self.has_started = False
 
     def next(self):
-        # Simulate updating tutor state for input
-        logger.debug("*************** Getting next problem *************")
-        has_prob = self.tutor.get_next_prob()
-        if not has_prob:
-            logger.debug("############ ************* Getting next section ************* ############")
-            has_section = self.tutor.set_next_section()
-            if not has_section:
-                logger.debug("$$$$$$$$$$$$$$$$$$ ************* Getting next unit ************* $$$$$$$$$$$$$$$$$$$$")
-                has_unit = self.tutor.set_next_unit()
-                if not has_unit:
-                    # No additional content to simulate
-                    logger.debug("No additional content to simulate")
-                    return False
-
         # Update Context
         context = SimpleTutorContext(self.tutor.state, self.student.state, self.tutor.session)
 
         self.student.update_context(context)
 
-        # Simulate Learner decision
+        # Simulate Learner decision & action
         action = self.student.choose_action()
         act = self.student.perform_action(action)
         
         # Simulate Learning interaction with tutor
         self.tutor.process_input(act)
-        has_prob = self.tutor.get_next_prob()
 
         # Return true for completing iteration
-        return True
+        return self.tutor.has_more()
 
 
     def run(self):

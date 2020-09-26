@@ -103,7 +103,9 @@ class SelfEfficacyLearner(Learner):
         logged_action = LoggedAction(self, act, self.cur_context.time)
         logger.debug("**************************************************")
         logger.debug("**************************************************")
+
         logger.debug("Logged action: %s" % str(logged_action.to_dict()))
+        self.db.actions.insert_one(logged_action.to_dict())
         logger.debug("**************************************************")
         logger.debug("**************************************************")
 

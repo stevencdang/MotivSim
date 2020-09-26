@@ -13,6 +13,9 @@ class Action:
     def __str__(self):
         return self.name
 
+    def to_dict(self):
+        return self.__dict__
+
 
 class Attempt(Action):
 
