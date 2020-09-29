@@ -63,6 +63,11 @@ class SelfEfficacyLearner(Learner):
         if action == Attempt:
             logger.debug("Action is attempt")
             time = random.gauss(kc.m_time, kc.sd_time)
+            # Lazy fiz to truncate gaussian
+            if time < 0:
+                logger.warning("Action performed was less than 0 secs, channging to 0 sec")
+                time = 0
+
             if self.skills[kc._id]:
                 weights = [(1 - kc.ps), kc.ps]
             else:
@@ -75,18 +80,33 @@ class SelfEfficacyLearner(Learner):
         elif action == HintRequest:
             logger.debug("Action is HintRequest")
             time = random.gauss(kc.m_time, kc.sd_time)
+            # Lazy fiz to truncate gaussian
+            if time < 0:
+                logger.warning("Action performed was less than 0 secs, channging to 0 sec")
+                time = 0
+
             act = HintRequest(time)
         elif action == Guess:
             logger.debug("Action is Guess")
             weights = [0.01, 0.99]
             is_correct = random.choices([True, False], weights=weights, k=1)[0]
             time = random.gauss(self.mean_guess_time, self.sd_guess_time)
+            # Lazy fiz to truncate gaussian
+            if time < 0:
+                logger.warning("Action performed was less than 0 secs, channging to 0 sec")
+                time = 0
+
             if time < 0.25:
                 time = 0.25 
             act = Guess(time, is_correct)
         elif action == OffTask:
             logger.debug("Action is %s" % str(action))
             time = random.uniform(self.min_off_task, self.max_off_task)
+            # Lazy fiz to truncate gaussian
+            if time < 0:
+                logger.warning("Action performed was less than 0 secs, channging to 0 sec")
+                time = 0
+
             act = OffTask(time)
         else:
             logger.debug("Action is %s" % str(action))
