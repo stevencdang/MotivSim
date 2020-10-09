@@ -19,7 +19,7 @@ class Tutor:
         self._id = str(uuid.uuid4())
         self.curric = curric
         self.stu_id = stu_id
-        self.mastery_thres = 0.95
+        self.mastery_thres = 0.90
         self.state = None
         self.session = None
 
@@ -147,7 +147,7 @@ class SimpleTutor(Tutor):
                 self.state.hints_used = self.state.hints_used + 1
                 self.state.hints_avail = self.state.hints_avail - 1
             else:
-                logger.warning("No additional hints available")
+                logger.debug("No additional hints available")
         elif isinstance(inpt, action.OffTask):
             logger.debug("Processing student Offtask")
         else:
@@ -180,7 +180,7 @@ class SimpleTutor(Tutor):
                         self.set_next_prob()
                         self.set_next_step()
                     else:
-                        logger.warning("Completed last unit. No more units in curriculum")
+                        logger.info("Completed last unit. No more units in curriculum")
 
     def has_more(self):
         # Returns true if there is mroe content for student to practice
@@ -205,7 +205,7 @@ class SimpleTutor(Tutor):
             self.state.completed[next_unit] = {} 
             return True
         else:
-            logger.warning("No additional units available")
+            logger.debug("No additional units available")
             return False
 
     def set_next_section(self):
@@ -222,7 +222,7 @@ class SimpleTutor(Tutor):
             self.state.completed[self.state.unit][self.state.section] = {}
             return True
         else:
-            logger.warning("No additional sections available in this unit")
+            logger.debug("No additional sections available in this unit")
             return False
 
     def set_next_prob(self):
@@ -288,19 +288,23 @@ class SimpleTutor(Tutor):
             kcs = self.state.get_section_kc_mastery()
             return {kc: pl0 for kc, pl0 in kcs.items() if pl0 < self.mastery_thres}
         else:
-            logger.error("Cannot get lsit of mastered kcs because section is not specified")
-            raise Exception("Cannot get lsit of mastered kcs because section is not specified")
+            logger.error("Cannot get list of mastered kcs because section is not specified")
+            raise Exception("Cannot get list of mastered kcs because section is not specified")
 
 
     def update_skill(self, kc, is_correct):
         plt = self.state.mastery[kc]
-        if is_correct:
-            plt1_cond = plt * (1 - kc.ps) / ((plt * (1 - kc.ps)) + (1 - plt) * kc.pg)
+        if plt < self.mastery_thres:
+            if is_correct:
+                plt1_cond = plt * (1 - kc.ps) / ((plt * (1 - kc.ps)) + (1 - plt) * kc.pg)
+            else:
+                plt1_cond = plt * kc.ps / ((plt * kc.ps) + (1 - plt) * (1 -kc.pg))
+            plt1 = plt1_cond + (1 - plt1_cond) * kc.pt
+            self.state.mastery[kc] = plt1
+            logger.debug("Outcome: %s\tPrior plt: %f\t updated plt: %f" % (str(is_correct), plt, plt1))
         else:
-            plt1_cond = plt * kc.ps / ((plt * kc.ps) + (1 - plt) * (1 -kc.pg))
-        plt1 = plt1_cond + (1 - plt1_cond) * kc.pt
-        self.state.mastery[kc] = plt1
-        logger.debug("Outcome: %s\tPrior plt: %f\t updated plt: %f" % (str(is_correct), plt, plt1))
+            # Hack for mastery learning to not allow student regression
+            logger.debug("Not updating skill because already past mastery threshold")
 
 
     def log_input(self, inpt, plt, plt1):

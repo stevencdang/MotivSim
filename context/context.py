@@ -24,6 +24,7 @@ class SimpleTutorContext(Context):
         
         self.learner_state = learner_state
         self.learner_off_task = learner_state.is_off_task()
+        self.learner_kc_knowledge = learner_state.skills[self.kc._id]
 
         self.session = session
         self.time = session.get_last_time()

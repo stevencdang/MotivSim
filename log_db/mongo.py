@@ -109,6 +109,14 @@ class Data_Utility:
                           self.db_params['user'], 
                           self.db_params['pswd'])
 
+    def peak(self):
+        allCollections = [col for col in self.db.collection_names() if col not in default_collections]
+        for col in allCollections:
+            docs = self.db[col].find()
+            logger.info( "collection name, %s, has %i documents" % ( col, docs.count()))
+
+
+
     def dump_db(self, data_dir=None):
         # Ensure data dump directory exists
         if data_dir is None:

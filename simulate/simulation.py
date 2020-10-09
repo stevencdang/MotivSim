@@ -7,7 +7,7 @@ import logging
 from datetime import datetime as dt
 
 from tutor.domain import Domain
-from tutor.curriculum import SimpleCurriculum
+from tutor.simple_curriculum import SimpleCurriculum
 from tutor.tutor import Tutor
 
 logger = logging.getLogger(__name__)

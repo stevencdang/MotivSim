@@ -1,4 +1,4 @@
-# Class for a student that makes decisions using primarily self-efficacy
+# Class for a student that always attempts problems to support tuning domain parameters
 # Add project root to python path
 import sys
 sys.path.append('..')
@@ -14,12 +14,12 @@ from log_db.learner_log import *
 
 logger = logging.getLogger(__name__)
 
-class SelfEfficacyLearner(Learner):
+class DomainTuner(Learner):
 
     def __init__(self, domain):
         super().__init__(domain)
-        self.type = "Self Efficacy Learner"
-        self.state = SelfEfficacyLearnerState()
+        self.type = "Domain Tuner Learner"
+        self.state = DomainTunerLearnerState()
         self.state.skills = self.skills
         self.min_off_task = 30 # 30 sec
         self.max_off_task = 1200 # 20 minutes
@@ -182,7 +182,7 @@ class SelfEfficacyLearner(Learner):
         return result
 
 
-class SelfEfficacyLearnerState(LearnerState):
+class DomainTunerLearnerState(LearnerState):
 
     def __init__(self):
         self.off_task = False
