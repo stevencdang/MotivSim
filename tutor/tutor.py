@@ -99,10 +99,21 @@ class SimpleTutor(Tutor):
         self.state.mastery = stu_mdl
 
     def init_tutor(self):
-        self.set_next_unit()
-        self.set_next_section()
-        self.set_next_prob()
-        self.set_next_step()
+        try:
+            self.set_next_unit()
+        except Exception as e:
+            logger.warning(e)
+
+        # if self.set_next_unit():
+            # if self.set_next_section():
+                # if self.set_next_prob():
+                    # self.set_next_step()
+                # else:
+                    # logger.warning("No addtional problesm in this section upon init")
+            # else:
+                # logger.warning("No addtional sections in this unit upon init")
+        # else:
+            # logger.warning("No addtional units. All mastered upon init")
        
     def process_input(self, inpt):
         # Increment clock to time inpt occured
@@ -165,27 +176,48 @@ class SimpleTutor(Tutor):
         if len(avail_steps) > 0:
             self.set_next_step()
         else:
-            has_prob = self.set_next_prob()
-            if has_prob:
-                self.set_next_step()
-            else:
-                has_section = self.set_next_section()
-                if has_section:
-                    self.set_next_prob()
-                    self.set_next_step()
-                else:
-                    has_unit = self.set_next_unit()
-                    if has_unit:
-                        self.set_next_section()
-                        self.set_next_prob()
-                        self.set_next_step()
-                    else:
-                        logger.info("Completed last unit. No more units in curriculum")
+            try:
+                self.set_next_prob()
+                return
+            except Exception as e:
+                logger.debug(e)
+
+            try:
+                self.set_next_section()
+                return
+            except Exception as e:
+                logger.debug(e)
+
+            try:
+                self.set_next_unit()
+                return
+            except Exception as e:
+                logger.debug(e)
+                logger.info("Completed last unit. No more units in curriculum")
+                self.state.is_done = True
+
+
+            # if has_prob:
+                # self.set_next_step()
+            # else:
+                # has_section = self.set_next_section()
+                # if has_section:
+                    # self.set_next_prob()
+                    # self.set_next_step()
+                # else:
+                    # has_unit = self.set_next_unit()
+                    # if has_unit:
+                        # self.set_next_section()
+                        # self.set_next_prob()
+                        # self.set_next_step()
+                    # else:
+                        # logger.info("Completed last unit. No more units in curriculum")
 
     def has_more(self):
         # Returns true if there is mroe content for student to practice
         # There is always an unsolved step set if there is more practice available
-        if self.state.completed[self.state.unit][self.state.section][self.state.problem][self.state.step] == False:
+        # if self.state.completed[self.state.unit][self.state.section][self.state.problem][self.state.step] == False:
+        if not self.state.is_done:
             # Current step is not complete
             return True
         else:
@@ -203,9 +235,10 @@ class SimpleTutor(Tutor):
             self.state.problem = None
             self.state.step = None
             self.state.completed[next_unit] = {} 
+            self.set_next_section()
             return True
         else:
-            logger.debug("No additional units available")
+            raise Exception("No additional units available")
             return False
 
     def set_next_section(self):
@@ -214,16 +247,21 @@ class SimpleTutor(Tutor):
             # self.set_next_unit()
         compl_sections = self.state.completed[self.state.unit].keys()
         avail_sections = [sect for sect in self.state.unit.sections if sect not in compl_sections]
-        if len(avail_sections) > 0:
+        while len(avail_sections) > 0:
             next_sect = avail_sections[0]
             self.state.section = next_sect
             self.state.problem = None
             self.state.step = None
             self.state.completed[self.state.unit][self.state.section] = {}
-            return True
-        else:
-            logger.debug("No additional sections available in this unit")
-            return False
+            try:
+                self.set_next_prob()
+                return
+            except Exception as e:
+                logger.debug("Next section has no problems to complete")
+                compl_sections = self.state.completed[self.state.unit].keys()
+                avail_sections = [sect for sect in self.state.unit.sections if sect not in compl_sections]
+
+        raise Exception("No additional sections available in this unit")
 
     def set_next_prob(self):
         sect_kcs = self.state.get_section_kc_mastery()
@@ -232,7 +270,7 @@ class SimpleTutor(Tutor):
             target_kc = random.choice(list(avail_kcs.keys()))
             logger.debug("Total section kcs: %i\tUnmastered kcs: %i\ttarget kc: %s" % (len(sect_kcs), len(avail_kcs), str(target_kc._id)))
         else:
-            logger.debug("Mastered all kcs. No additional necessary problems for this section")
+            raise Exception("Mastered all kcs. No additional problems to complete for this section")
             return False
         # Select random problem with target kc
         # Get list of problems with particular kc
@@ -260,9 +298,11 @@ class SimpleTutor(Tutor):
             self.state.step = None
             self.state.completed[self.state.unit][self.state.section][self.state.problem] = {}
             logger.debug("Selected problem: %s" % str(prob))
+            self.set_next_step()
             return True
         else:
             logger.debug("Finished with section. Advancing to next section")
+            raise Exception("No additional problems available in this section")
             # self.set_next_section()
             return False
 
@@ -437,6 +477,7 @@ class SimpleTutorState:
         self.hints_used = None
         self.first_attempt = None
         self.attempt = None
+        self.is_done = False
 
     def has_started(self):
         if self.prob == None:

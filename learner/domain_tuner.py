@@ -31,26 +31,14 @@ class DomainTuner(Learner):
 
     def choose_action(self):
         actions = self.cur_context.get_actions()
-        action_evs = {str(action): {'expectancy': self.calc_expectancy(action),
-                            'value': self.calc_value(action)
-                            }
-              for action in actions
-        }
+        if Attempt in actions:
+            choice = Attempt
+        else:
+            choice = actions[0]
+            logger.warning("Attempt is not a possible action. Only: %s\nChoosing %s instead" % (str(actions), str(choice)))
+        # Dummy values
         action_evs = {}
-        for action in actions:
-            exp = self.calc_expectancy(action)
-            val = self.calc_value(action)
-            # Diligence Multiplier
-            if self.is_diligent(action):
-                action_evs[action.__name__] = self.diligence * exp*val  
-            else:
-                action_evs[action.__name__] = exp*val
-
-        total_ev = np.sum([val for val in action_evs.values()])
-        pev = [action_evs[action.__name__]/total_ev for action in actions]
-        logger.debug(str(pev))
-
-        choice = random.choices(actions, weights=pev, k=1)[0]
+        pev = []
         decision = Decision(self, choice.__name__, self.cur_context.time, action_evs, pev, self.cur_context)
         logger.debug("Logging decision: %s" % str(decision.to_dict()))
         logger.debug("******************************************************")
@@ -132,32 +120,6 @@ class DomainTuner(Learner):
 
     def update_state(self):
         pass
-
-    def calc_expectancy(self, action):
-        logger.debug("Calculating expectancy for action: %s" % str(action))
-        if action == Attempt:
-            return 0.2
-        elif action == Guess:
-            return 0.01
-        elif action == HintRequest:
-            return 1
-        elif action == OffTask:
-            return 1
-        else:
-            return 0
-
-    def calc_value(self, action):
-        logger.debug("Calculating value for action: %s" % str(action))
-        if action == Attempt:
-            return 1
-        elif action == Guess:
-            return 0.5
-        elif action == HintRequest:
-            return 0.1
-        elif action == OffTask:
-            return 0.05
-        else:
-            return 0
 
     def is_off_task(self):
         return self.state.is_off_task()
