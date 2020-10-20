@@ -10,13 +10,14 @@ import numpy as np
 
 from .learner import Learner, LearnerState
 from tutor.action import *
+from tutor.feedback import *
 from log_db.learner_log import *
 
 logger = logging.getLogger(__name__)
 
 class SelfEfficacyLearner(Learner):
 
-    def __init__(self, domain):
+    def __init__(self, domain, self_eff=None):
         super().__init__(domain)
         self.type = "Self Efficacy Learner"
         self.state = SelfEfficacyLearnerState()
@@ -27,7 +28,52 @@ class SelfEfficacyLearner(Learner):
         self.sd_hint_time = 1 # seconds
         self.mean_guess_time = 3 # seconds
         self.sd_guess_time = 1 # seconds
-        self.diligence = 2
+        self.diligence = random.gauss(2,.3)
+        if self.diligence <= 0:
+            self.diligence = 0.1
+        self.values = {}
+        self.self_eff = 0
+        self.init_values()
+        self.init_self_eff(self_eff)
+
+    def init_values(self):
+        atv = 0
+        while atv <= 4:
+            atv = random.gauss(10,1.5)
+        gsv = 0
+        while gsv <= 0:
+            gsv = random.gauss(atv - 2, 1)
+        hrv = 0
+        while hrv <= 0.1:
+            if gsv < 3:
+                hrv = random.gauss(gsv + 1, 1)
+            else:
+                hrv = random.gauss(3, 1)
+        otv = 0
+        while otv <= 0:
+            otv = random.gauss(1,3)
+
+        self.values = {
+            'attempt': atv,
+            'guess': gsv,
+            'hint request': hrv,
+            'off task': otv
+        }
+
+
+    def init_self_eff(self, self_eff):
+        if self_eff is not None:
+            se = self_eff
+        else:
+            se = random.gauss(0.5, 0.15)
+
+        if se >= 1:
+            se = 0.99
+        elif se <= 0:
+            se = 0.01
+
+        self.self_eff = se
+
 
     def choose_action(self):
         actions = self.cur_context.get_actions()
@@ -130,15 +176,34 @@ class SelfEfficacyLearner(Learner):
 
         return act
 
+    def process_feedback(self, fdbk):
+        if isinstance(fdbk, AttemptResponse):
+            logger.debug("Processing Attempt response: %s" % str(fdbk))
+            self.state.total_attempts = self.state.total_attempts + 1
+            if fdbk.is_correct:
+                self.state.total_success = self.state.total_success + 1
+        if isinstance(fdbk, HintResponse):
+            logger.debug("Processing Hint Request response: %s" % str(fdbk))
+
     def update_state(self):
         pass
 
     def calc_expectancy(self, action):
         logger.debug("Calculating expectancy for action: %s" % str(action))
         if action == Attempt:
-            return 0.2
+            self_eff = self.calc_self_eff()
+            # Adjust expectancy for each hint
+            total_hints = self.cur_context.hints_used + self.cur_context.hints_avail
+            hint_exp = self.cur_context.hints_used / total_hints
+            exp = self_eff + (1 - self_eff) * hint_exp
+            return exp
         elif action == Guess:
-            return 0.01
+            exp = random.gauss(0.10, 0.02)
+            if exp < 0:
+                exp = 0
+            elif exp >1:
+                exp = 1
+            return exp
         elif action == HintRequest:
             return 1
         elif action == OffTask:
@@ -149,15 +214,27 @@ class SelfEfficacyLearner(Learner):
     def calc_value(self, action):
         logger.debug("Calculating value for action: %s" % str(action))
         if action == Attempt:
-            return 1
+            return self.values['attempt']
         elif action == Guess:
-            return 0.5
+            return self.values['guess']
         elif action == HintRequest:
-            return 0.1
+            return self.values['hint request']
         elif action == OffTask:
-            return 0.05
+            return self.values['off task']
         else:
             return 0
+
+    def calc_self_eff(self):
+        ''' 
+        Self-efficacy is [0,1]. Self-efficacy is calculated as the success rate on prior attempts.
+        An initial self-efficacy ratio is defined per student and is comparable to a success rate
+        over the past 100 prior attempts
+
+        '''
+        init_attempts = 1000
+        init_success = self.self_eff * init_attempts
+        self_eff = (init_success + self.state.total_success) / (init_attempts + self.state.total_attempts)
+        return self_eff
 
     def is_off_task(self):
         return self.state.is_off_task()
@@ -179,6 +256,10 @@ class SelfEfficacyLearner(Learner):
         result['mean_guess_time'] = self.mean_guess_time
         result['sd_guess_time'] = self.sd_guess_time
         result['diligence'] = self.diligence
+        result['self_eff'] = self.self_eff
+        result['values'] = self.values
+        result['total_attempts'] = self.state.total_attempts
+        result['total_success'] = self.state.total_success
         return result
 
 
@@ -188,6 +269,8 @@ class SelfEfficacyLearnerState(LearnerState):
         self.off_task = False
         self.attempted = False
         self.skills = None
+        self.total_attempts = 0
+        self.total_success = 0
 
     def is_off_task(self):
         return self.off_task

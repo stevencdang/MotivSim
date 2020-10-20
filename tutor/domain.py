@@ -68,7 +68,7 @@ class Domain:
             self.kc_hyperparams[arg] = val
         
 
-    def generate_kcs(self, n):
+    def generate_kcs(self, n, mastery_thres):
         # Generate n kcs
         logger.debug("generate kcs for domain: %s" % self._id)
         kcs = []
@@ -76,6 +76,11 @@ class Domain:
             logger.debug("Generating kc #%i" % i)
             pl0 = random.gauss(self.kc_hyperparams['m_l0'], 
                                self.kc_hyperparams['sd_l0'])
+            if pl0 <= 0:
+                pl0 = 0.01
+            elif pl0 >= mastery_thres:
+                pl0 = mastery_thres - 0.01
+
             pt = random.gauss(self.kc_hyperparams['m_t'], 
                               self.kc_hyperparams['sd_t'])
             if pt <= 0:

@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class Learner:
 
     def __init__(self, domain):
-        self._id = uuid.uuid4()
+        self._id = str(uuid.uuid4())
         self.domain_id = domain._id
         self.cur_context = None
         self.new_context = False

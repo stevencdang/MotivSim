@@ -24,11 +24,12 @@ class CogTutorCurriculum(Curriculum):
                  mean_steps=10,
                  stdev_steps=4,
                  mean_prob_kcs=6,
-                 stdev_prob_kcs=3
+                 stdev_prob_kcs=3,
+                 mastery_thres=0.9
                  ):
         logger.debug("Generating curriculum for %s" % type(self))
 
-        self.gen_units(num_units, mean_sections, stdev_sections, mean_unit_kcs, stdev_unit_kcs, section_kcs_lambda)
+        self.gen_units(num_units, mean_sections, stdev_sections, mean_unit_kcs, stdev_unit_kcs, section_kcs_lambda, mastery_thres)
         logger.info("Generated %i units with with a total of %i kcs" % (len(self.units), len(self.domain.kcs)))
 
         for unit in self.units:
@@ -47,7 +48,7 @@ class CogTutorCurriculum(Curriculum):
 
 
        
-    def gen_units(self, num_units, mean_sections, stdev_sections, mean_unit_kcs, stdev_unit_kcs, section_kcs_lambda):
+    def gen_units(self, num_units, mean_sections, stdev_sections, mean_unit_kcs, stdev_unit_kcs, section_kcs_lambda, mastery_thres):
         for i in range(num_units):
             num_sections = round(random.gauss(mean_sections, stdev_sections))
             if num_sections < 1:
@@ -64,7 +65,7 @@ class CogTutorCurriculum(Curriculum):
                 
                 logger.debug("Generating section #%i with %i kcs" % (j, num_kcs))
                 section = Section(self.domain_id, self._id, unit._id)
-                kcs = self.domain.generate_kcs(num_kcs)
+                kcs = self.domain.generate_kcs(num_kcs, mastery_thres)
                 unit.kcs.extend(kcs)
                 section.kcs.extend(kcs)
                 unit.sections.append(section)

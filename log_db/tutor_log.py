@@ -46,7 +46,8 @@ class SessionEnd(Transaction):
 
 class TutorInput(Transaction):
     
-    def __init__(self, time,
+    def __init__(self, 
+                 time,
                  curric_id,
                  unit_id, 
                  section_id,
@@ -103,7 +104,5 @@ class TutorInput(Transaction):
         # logger.info(str(out['kcs'][0].__dict__))
         out['kcs'] = [kc.__dict__ for kc in out['kcs']]
         return out
-
-
 
 

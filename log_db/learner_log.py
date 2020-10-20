@@ -22,6 +22,12 @@ class Decision:
         self.kc = context.kc
         self.learner_knowledge = context.learner_kc_knowledge
         self.attempt = context.attempt
+        self.hints_avail = context.hints_avail
+        self.hints_used = context.hints_used
+        self.learner_off_task = context.learner_off_task
+        self.self_eff = student.calc_self_eff()
+
+
 
     def to_dict(self):
         result = copy.deepcopy(self.__dict__)

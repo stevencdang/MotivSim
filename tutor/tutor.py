@@ -7,7 +7,9 @@ import logging
 import uuid
 import random
 import datetime as dt
+
 from . import action
+from .feedback import *
 from log_db.tutor_log import TutorInput, SessionStart, SessionEnd
 from log_db import mongo
 
@@ -15,11 +17,11 @@ logger = logging.getLogger(__name__)
 
 class Tutor:
 
-    def __init__(self, curric, stu_id):
+    def __init__(self, curric, stu_id, mastery_thres=0.9):
         self._id = str(uuid.uuid4())
         self.curric = curric
         self.stu_id = stu_id
-        self.mastery_thres = 0.90
+        self.mastery_thres = mastery_thres
         self.state = None
         self.session = None
 
@@ -87,7 +89,7 @@ class Tutor:
 
 class SimpleTutor(Tutor):
 
-    def __init__(self, curric, stu_id):
+    def __init__(self, curric, stu_id, mastery_thres=0.9):
         super().__init__(curric, stu_id)
         self.state = SimpleTutorState()
         self.init_student_model()
@@ -103,17 +105,6 @@ class SimpleTutor(Tutor):
             self.set_next_unit()
         except Exception as e:
             logger.warning(e)
-
-        # if self.set_next_unit():
-            # if self.set_next_section():
-                # if self.set_next_prob():
-                    # self.set_next_step()
-                # else:
-                    # logger.warning("No addtional problesm in this section upon init")
-            # else:
-                # logger.warning("No addtional sections in this unit upon init")
-        # else:
-            # logger.warning("No addtional units. All mastered upon init")
        
     def process_input(self, inpt):
         # Increment clock to time inpt occured
@@ -137,6 +128,9 @@ class SimpleTutor(Tutor):
             if inpt.is_correct:
                 self.update_state()
 
+            fdbk = AttemptResponse(inpt.name, inpt.is_correct)
+            return fdbk
+
         elif isinstance(inpt, action.HintRequest):
             logger.debug("Processing student hint request")
             logger.debug("Hints avail: %i\tHints use: %s" % (self.state.hints_avail, self.state.hints_used))
@@ -159,8 +153,14 @@ class SimpleTutor(Tutor):
                 self.state.hints_avail = self.state.hints_avail - 1
             else:
                 logger.debug("No additional hints available")
+            
+            hint_msg = "Hint #%i" % self.state.hints_used
+            fdbk = HintResponse(inpt.name, self.state.hints_used, self.state.hints_avail, hint_msg)
+            return fdbk
+
         elif isinstance(inpt, action.OffTask):
             logger.debug("Processing student Offtask")
+            return None
         else:
             raise IOError("Unable to process input of type: %s" % str(type(inpt)))
 
@@ -196,22 +196,6 @@ class SimpleTutor(Tutor):
                 logger.info("Completed last unit. No more units in curriculum")
                 self.state.is_done = True
 
-
-            # if has_prob:
-                # self.set_next_step()
-            # else:
-                # has_section = self.set_next_section()
-                # if has_section:
-                    # self.set_next_prob()
-                    # self.set_next_step()
-                # else:
-                    # has_unit = self.set_next_unit()
-                    # if has_unit:
-                        # self.set_next_section()
-                        # self.set_next_prob()
-                        # self.set_next_step()
-                    # else:
-                        # logger.info("Completed last unit. No more units in curriculum")
 
     def has_more(self):
         # Returns true if there is mroe content for student to practice
@@ -272,23 +256,6 @@ class SimpleTutor(Tutor):
         else:
             raise Exception("Mastered all kcs. No additional problems to complete for this section")
             return False
-        # Select random problem with target kc
-        # Get list of problems with particular kc
-        # logger.debug("*****************************************")
-        # logger.info("Curriculum id: %s" % self.curric._id)
-        # logger.info("Number of units: %i" % len(self.curric.units))
-        # logger.info("Number of kcs in the domain: %i" % len(self.curric.domain.kcs))
-        # logger.debug("Number of Units in curric: %i" % len(self.curric.units))
-        # logger.debug("Current unit id: %s\t section id: %s\t" % (self.state.unit._id, self.state.section._id))
-        # logger.debug("Completed Sections in unit with id %s: %i" % (self.state.unit._id, len(self.state.completed[self.state.unit])))
-        # logger.debug(self.state.completed.keys())
-        # logger.debug(self.state.completed[self.state.unit].keys())
-        # logger.debug("Current section id: %s" % self.state.section._id)
-        # logger.debug([sect._id for sect in self.state.completed[self.state.unit]])
-        # logger.debug("All section problesm: %i\t Completed problems: %i" % (
-                    # len(self.state.section.problems),
-                    # len(self.state.completed[self.state.unit][self.state.section])
-        # ))
                     
         avail_probs = [prob for prob in self.state.section.problems if ((target_kc in prob.kcs) and (prob not in self.state.completed[self.state.unit][self.state.section]))]
         logger.debug("Current have %i available problems" % len(avail_probs))

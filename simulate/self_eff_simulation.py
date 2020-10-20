@@ -20,13 +20,14 @@ logger = logging.getLogger(__name__)
 
 class SelfEffSimulation(Simulation):
     
-    def __init__(self, domain=None, curric=None, student=None):
+    def __init__(self, domain=None, curric=None, student=None, mastery_thres=0.90):
         super().__init__(domain, curric)
         if student is None:
+            logger.warning("No student given. Creating a new student to use in simulation")
             self.student = SelfEfficacyLearner(domain)
         else:
             self.student = student
-        self.tutor = SimpleTutor(self.curric, self.student._id)
+        self.tutor = SimpleTutor(self.curric, self.student._id, mastery_thres)
         self.has_started = False
 
     def next(self):
@@ -40,7 +41,10 @@ class SelfEffSimulation(Simulation):
         act = self.student.perform_action(action)
         
         # Simulate Learning interaction with tutor
-        self.tutor.process_input(act)
+        feedback = self.tutor.process_input(act)
+        
+        if feedback is not None:
+            self.student.process_feedback(feedback)
 
         # Return true for completing iteration
         return self.tutor.has_more()
