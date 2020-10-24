@@ -216,9 +216,15 @@ class SelfEfficacyLearner(Learner):
         if action == Attempt:
             return self.values['attempt']
         elif action == Guess:
-            return self.values['guess']
+            if self.cur_context.learner_kc_knowledge:
+                return self.values['guess']
+            else:
+                return 2*self.values['guess']
         elif action == HintRequest:
-            return self.values['hint request']
+            if self.cur_context.learner_kc_knowledge:
+                return 0.25*self.values['hint request']
+            else:
+                return self.values['hint request']
         elif action == OffTask:
             return self.values['off task']
         else:
