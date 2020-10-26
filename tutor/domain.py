@@ -68,7 +68,7 @@ class Domain:
             self.kc_hyperparams[arg] = val
         
 
-    def generate_kcs(self, n, mastery_thres):
+    def generate_kcs(self, n, mastery_thres=0.9):
         # Generate n kcs
         logger.debug("generate kcs for domain: %s" % self._id)
         kcs = []

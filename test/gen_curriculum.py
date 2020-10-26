@@ -6,7 +6,7 @@ sys.path.append('..')
 import logging
 
 from tutor.domain import Domain
-from tutor.curriculum import SimpleCurriculum
+from tutor.simple_curriculum import SimpleCurriculum
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger("main")

@@ -236,5 +236,5 @@ if __name__ == '__main__':
     logger.info("got db params: %s" % str(db_params))
     util = Data_Utility(data_path, db_params)
     util.dump_db()
-    util.sample_doc(3)
+    # util.sample_doc(3)
     # util.clear_db()
