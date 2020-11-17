@@ -5,7 +5,6 @@ sys.path.append('..')
 
 import logging
 import random
-import inspect
 import numpy as np
 
 from .learner import Learner, LearnerState

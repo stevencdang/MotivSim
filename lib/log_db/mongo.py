@@ -19,14 +19,16 @@ SETTINGS_PATH = "../mongo_settings.cfg"
 
 logger = logging.getLogger(__name__)
 
-def get_db_params(name='motivsim'):
+def get_db_params(name='motivsim', settings_path=None):
   """
   Connect to a mongo db using the settings stored for the given name
 
   """
   global SETTINGS_PATH
+  if settings_path is None:
+      settings_path = SETTINGS_PATH
   cfg = configparser.ConfigParser()
-  with open(SETTINGS_PATH, 'r') as f:
+  with open(settings_path, 'r') as f:
     cfg.read_file(f)
     url = cfg.get(name, "url")
     port = cfg.get(name, "port")

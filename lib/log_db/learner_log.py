@@ -25,15 +25,17 @@ class Decision:
         self.hints_avail = context.hints_avail
         self.hints_used = context.hints_used
         self.learner_off_task = context.learner_off_task
-        self.self_eff = student.calc_self_eff()
-
+        try:
+            self.self_eff = student.calc_self_eff()
+        except:
+            self.self_eff = ''
 
 
     def to_dict(self):
         result = copy.deepcopy(self.__dict__)
         result['kc'] = copy.deepcopy(self.kc.__dict__)
         return result
-        
+
 
 class LoggedAction:
 

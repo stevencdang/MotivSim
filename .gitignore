@@ -13,8 +13,9 @@ notebooks/*venv
 .ipynb_checkpoints/
 
 
-# Generated Testing data
-test/data/*
+# Testing files
+lib/mongo_settings.cfg
+lib/test/data/*
 
 
 # Settings for local simulation

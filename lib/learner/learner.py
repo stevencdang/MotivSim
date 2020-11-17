@@ -5,6 +5,7 @@ import logging
 import random
 
 from log_db import mongo
+from tutor.feedback import *
 
 
 logger = logging.getLogger(__name__)
@@ -52,6 +53,12 @@ class Learner:
 
     def perform_action(self):
         pass
+
+    def process_feedback(self, fdbk):
+        if isinstance(fdbk, AttemptResponse):
+            logger.debug("Processing Attempt response: %s" % str(fdbk))
+        if isinstance(fdbk, HintResponse):
+            logger.debug("Processing Hint Request response: %s" % str(fdbk))
 
     def update_state(self):
         pass
