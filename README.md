@@ -28,10 +28,15 @@ git submodule update
 
 ## Setting up mongo with docker
 
-Once docker is installed and running, pull mongo image and run mongo docker image exposing default port
+1. Ensure docker and docker-compose is installed and the daemon is running
+2. Pull the latest mongo image
+3. Configure a new volume for persisting mongo data
+4. Duplicate the docker-compose yml file, ensuring it is configured to use the volume you created
+5. Run the docker image using docker compose 
 
 ```
 docker pull mongo
-docker run -p 27017:27017 mongo
+docker volume create sim-mongodb
+docker-compose -f db.yml up
 
 ```
