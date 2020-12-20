@@ -6,6 +6,8 @@ import logging
 import random
 
 from log_db import mongo
+from log_db.domain_mapper import DBDomainMapper
+
 from tutor.feedback import *
 
 from .modular_learner_state import ModularLearnerState
@@ -17,7 +19,7 @@ class Cognition:
 
     def __init__(self, domain):
         self.domain_id = domain._id
-        self.type = "Base Cognition Module"
+        self.type = type(self).__name__
         self.skills = {skl._id: None for skl in domain.kcs}
         logger.debug("Init base Cognition")
 
@@ -32,3 +34,8 @@ class Cognition:
 
     def to_dict(self):
         return self.__dict__
+
+    def update_with_dict(self, d):
+        self.domain_id = d['domain_id']
+        self.type = d['type']
+        self.skills = d['skills']

@@ -25,8 +25,8 @@ from simulate.modlearner_simulation import ModLearnerSimulation
 from log_db import mongo
 from log_db.curriculum_mapper import DB_Curriculum_Mapper
 
-logging.basicConfig(level=logging.DEBUG)
-# logging.basicConfig(level=logging.INFO)
+# logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("main")
 
 
@@ -50,12 +50,12 @@ def gen_curriculum(db, db_params):
                      'sd_l0': 0.155,
                      'm_t': 0.35,
                      'sd_t': 0.13,#0.03,
-                     'm_s': 0.155,
+                     'm_s': 0.105,
                      'sd_s': 0.055,
                      'm_g': 0.45,#0.6,
                      'sd_g': 0.105 
     }
-    curric_params = {'num_units': 30,
+    curric_params = {'num_units': 5,
                      'mean_sections': 4,
                      'stdev_sections': 2,
                      'mean_unit_kcs': 22,
@@ -124,7 +124,7 @@ def test_modlearner():
     num_students = 1
     for i in range(num_students):
         cog = BinarySkillCognition(domain)
-        ev_decider = EVDecider()
+        ev_decider = RandValDecider()
         decider = DiligentDecider(ev_decider)
         stu = ModularLearner(domain, cog, decider)
         logger.debug("inserting new student to db: %s" % str(stu.to_dict()))

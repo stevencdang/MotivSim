@@ -4,6 +4,7 @@ import sys
 sys.path.append('..')
 
 import logging
+import uuid
 from datetime import datetime as dt
 
 from tutor.domain import Domain
@@ -16,6 +17,7 @@ class Simulation:
     # Base class
 
     def __init__(self, domain=None, curric=None):
+        self._id = str(uuid.uuid4())
         if domain is None:
             domain = self.gen_domain()
         self.domain = domain
@@ -70,4 +72,37 @@ class Simulation:
         curric = SimpleCurriculum(domain)
         curric.generate(num_units, num_sections, num_practice)
         return curric
+
+
+class SimulationBatch:
+
+    def __init__(self, desc):
+        self._id = str(uuid.uuid4())
+        self.run_time = dt.now()
+        # For now, just track the list of students
+        self.student_ids = set()
+        self.desc = desc
+
+    def add_sim(self, sim):
+        sim_stu = sim.student
+        sid = sim.student._id
+        if sid not in self.student_ids:
+            self.student_ids.add(sid)
+    
+    def to_dict(self):
+        out = {'_id': self._id,
+               'run_time': self.run_time,
+               'desc': self.desc,
+               'student_ids': list(self.student_ids)
+               }
+        return out
+    
+    @classmethod
+    def from_dict(cls, d):
+        result = cls(d['desc'])
+        result._id = d['_id']
+        result.run_time = d['run_time']
+        result.student_ids = set(d['student_ids'])
+        return result
+
 

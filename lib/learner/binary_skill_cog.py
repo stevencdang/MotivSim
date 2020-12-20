@@ -20,7 +20,6 @@ class BinarySkillCognition(Cognition):
     def __init__(self, domain):
         super().__init__(domain)
         logger.debug("Init Binary Skill Cognition")
-        self.type = "Binary Skill Cognition"
         self.init_skills(domain)
 
 
@@ -46,10 +45,14 @@ class BinarySkillCognition(Cognition):
         logger.debug("Action is %s" % str(action))
 
         if action == Attempt:
-            if self.skills[kc._id]:
+            if self.is_skill_mastered(kc):
                 weights = [(1 - kc.ps), kc.ps]
             else:
-                weights = [kc.pg, (1 - kc.pg)]
+                # Adjust prob(correct) depending on number of hints avail
+                total_hints = context.hints_used + context.hints_avail
+                hint_exp = context.hints_used / total_hints
+                pg = kc.pg + (1 - kc.pg) * hint_exp
+                weights = [pg, (1 - pg)]
             is_correct = random.choices([True, False], weights=weights, k=1)[0]
             
         elif action == Guess:

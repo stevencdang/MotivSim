@@ -33,9 +33,9 @@ class ModularLearner(Learner):
 
         # Learner Specific attributes
         self.min_off_task = 30 # 30 sec
-        self.max_off_task = 1200 # 20 minutes
-        self.mean_hint_time = 3 # seconds
-        self.sd_hint_time = 1 # seconds
+        self.max_off_task = 1800 # 30 minutes
+        self.mean_hint_time = 5 # seconds
+        self.sd_hint_time = 1.5 # seconds
         self.mean_guess_time = 3 # seconds
         self.sd_guess_time = 1 # seconds
 
@@ -58,16 +58,15 @@ class ModularLearner(Learner):
         logger.debug("Choosing action: %s" % str(choice))
         return choice
 
-
     def perform_action(self, action):
         kc = self.cur_context.kc
         logger.debug("Action is %s" % str(action))
         if action == Attempt:
             time = random.gauss(kc.m_time, kc.sd_time)
             # Lazy fiz to truncate gaussian
-            if time < 0:
-                logger.debug("Action performed was less than 0 secs, channging to 0 sec")
-                time = 0
+            if time < 0.25:
+                logger.debug("Action performed was less than 0.25 secs, channging to 0.25 sec")
+                time = 0.25 
 
             is_correct = self.cog.produce_answer(action, self.cur_context)
             self.state.attempted = True
@@ -77,29 +76,21 @@ class ModularLearner(Learner):
         elif action == HintRequest:
             time = random.gauss(self.mean_hint_time, self.sd_hint_time)
             # Lazy fiz to truncate gaussian
-            if time < 0:
-                logger.debug("Action performed was less than 0 secs, channging to 0 sec")
-                time = 0
+            if time < 0.25:
+                logger.debug("Action performed was less than 0.25 secs, channging to 0.25 sec")
+                time = 0.25 
 
             act = HintRequest(time)
         elif action == Guess:
             is_correct = self.cog.produce_answer(action, self.cur_context)
             time = random.gauss(self.mean_guess_time, self.sd_guess_time)
             # Lazy fiz to truncate gaussian
-            if time < 0:
-                logger.debug("Action performed was less than 0 secs, channging to 0 sec")
-                time = 0
-
             if time < 0.25:
+                logger.debug("Action performed was less than 0.25 secs, channging to 0.25 sec")
                 time = 0.25 
             act = Guess(time, is_correct)
         elif action == OffTask:
             time = random.uniform(self.min_off_task, self.max_off_task)
-            # Lazy fiz to truncate gaussian
-            if time < 0:
-                logger.debug("Action performed was less than 0 secs, channging to 0 sec")
-                time = 0
-
             act = OffTask(time)
         else:
             act = None
@@ -141,4 +132,4 @@ class ModularLearner(Learner):
         result['total_attempts'] = self.state.total_attempts
         result['total_success'] = self.state.total_success
         return result
-
+    

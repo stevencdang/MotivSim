@@ -8,6 +8,7 @@ class Action:
 
     def __init__(self, time):
         self.name = None
+        self.type = type(self).__name__
         self.time = time
 
     def __str__(self):

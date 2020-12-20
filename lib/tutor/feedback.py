@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 class Feedback:
 
     def __init__(self, action):
-        self.type = None
+        self.type = type(self).__name__
         self.action = action
         self.msg = None
 
@@ -22,7 +22,7 @@ class AttemptResponse(Feedback):
 
     def __init__(self, action, is_correct, msg=""):
         super().__init__(action)
-        self.type = "Attempt Response"
+        # self.type = "Attempt Response"
         self.is_correct = is_correct
         self.msg = msg
 
@@ -31,7 +31,7 @@ class HintResponse(Feedback):
 
     def __init__(self, action, hint_num, hint_remain, msg=""):
         super().__init__(action)
-        self.type = "Hint Response"
+        # self.type = "Hint Response"
         self.hint_num = hint_num
         self.hint_remain = hint_remain
         self.msg = msg

@@ -106,11 +106,21 @@ class Domain:
         logger.debug("generated %i kcs" % len(kcs))
         return kcs
 
-
+    def __str__(self):
+        return str({'_id': self._id,
+                'kcs': [str(kc) for kc in self.kcs],
+                'kc_hyperparms': self.kc_hyperparams
+                })
 
     def to_dict(self):
         return {'_id': self._id,
-                'kcs': [kc._id for kc in self.kcs]
+                'kcs': [kc._id for kc in self.kcs],
+                # 'kcs': [str(kc) for kc in self.kcs],
+                'kc_hyperparms': self.kc_hyperparams
                 }
+
+    def from_dict(d):
+        out = Domain()
+        
 
 

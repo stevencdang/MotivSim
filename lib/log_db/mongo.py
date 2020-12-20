@@ -114,8 +114,7 @@ class Data_Utility:
     def peak(self):
         allCollections = [col for col in self.db.collection_names() if col not in default_collections]
         for col in allCollections:
-            docs = self.db[col].find()
-            logger.info( "collection name, %s, has %i documents" % ( col, docs.count()))
+            logger.info( "collection name, %s, has %i documents" % ( col, self.db[col].estimated_document_count()))
 
 
 
@@ -185,7 +184,7 @@ class Data_Utility:
 
         for col in clear_cols:
             # Remove all docs from collection
-            logger.debug("Clearing all documents from collection %s" % col)
+            logger.info("Clearing all documents from collection %s" % col)
             self.db[col].remove()
 
     def get_data(self, collection, fields=None, filters=None):

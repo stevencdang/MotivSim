@@ -34,14 +34,14 @@ class SessionStart(Transaction):
     
     def __init__(self, time):
         super().__init__(time)
-        self.type = "Session Start"
+        self.type = type(self).__name__
 
 
 class SessionEnd(Transaction):
     
     def __init__(self, time):
         super().__init__(time)
-        self.type = "Session End"
+        self.type = type(self).__name__
 
 
 class TutorInput(Transaction):
@@ -64,7 +64,7 @@ class TutorInput(Transaction):
                  attempt
                  ):
         super().__init__(time)
-        self.type = "Tutor Input"
+        self.type = type(self).__name__
         self.curric_id = curric_id
         self.unit_id = unit_id
         self.section_id = section_id

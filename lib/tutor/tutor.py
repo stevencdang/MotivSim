@@ -209,6 +209,7 @@ class SimpleTutor(Tutor):
         
 
     def set_next_unit(self):
+        # logger.info("Beginning next unit")
         compl_units = self.state.completed.keys()
         avail_units = [unit for unit in self.curric.units if unit not in compl_units]
         logger.debug("available units: %s" % str(avail_units))
