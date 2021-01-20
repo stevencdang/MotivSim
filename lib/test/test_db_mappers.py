@@ -63,5 +63,5 @@ def test_learner_mapper():
 
 
 if __name__ == "__main__":
-    # test_domain_mapper()
-    test_learner_mapper()
+    test_domain_mapper()
+    # test_learner_mapper()

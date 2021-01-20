@@ -2,6 +2,7 @@
 import logging
 import uuid
 import random
+import copy
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +17,7 @@ class KC:
                  m_time=None, 
                  sd_time=None):
         self._id = str(uuid.uuid4())
+        self.type = type(self).__name__
         self.domain_id = did
         self.pl0 = pl0
         self.pt = pt
@@ -27,11 +29,28 @@ class KC:
     def __str__(self):
         return str(self.__dict__)
 
+class ContKC(KC):
+    # KC for modeling learning as linear/incremental process
+
+
+    def __init__(self, 
+                 did, 
+                 pl0=None, 
+                 pl0_sd=None,
+                 pt=None, 
+                 ps=None, 
+                 pg=None, 
+                 m_time=None, 
+                 sd_time=None):
+        super().__init__(did, pl0, pt, ps, pg, m_time, sd_time)
+        self.pl0_sd = pl0_sd
+    
 
 class Domain:
 
     def __init__(self):
         self._id = str(uuid.uuid4())
+        self.type = type(self).__name__
         self.kcs = []
         self.kc_hyperparams = {
                      'm_l0':None,
@@ -108,19 +127,71 @@ class Domain:
 
     def __str__(self):
         return str({'_id': self._id,
-                'kcs': [str(kc) for kc in self.kcs],
-                'kc_hyperparms': self.kc_hyperparams
-                })
+                  'kcs': [str(kc) for kc in self.kcs],
+                  'kc_hyperparms': self.kc_hyperparams
+                  })
 
     def to_dict(self):
-        return {'_id': self._id,
-                'kcs': [kc._id for kc in self.kcs],
-                # 'kcs': [str(kc) for kc in self.kcs],
-                'kc_hyperparms': self.kc_hyperparams
-                }
+        d = copy.deepcopy(self.__dict__)
+        d['kcs'] = [kc._id for kc in self.kcs]
+        return d
+
 
     def from_dict(d):
         out = Domain()
         
 
+class ContKCDomain(Domain):
 
+    def __init__(self):
+        super().__init__()
+        self.kc_hyperparams['m_l0_sd'] = None
+        self.kc_hyperparams['sd_l0_sd'] = None
+        self.set_default_hyperparams()
+
+    def set_default_hyperparams(self):
+        super().set_default_hyperparams()
+        params = { 
+                 'm_l0_sd':0.5, 
+                 'sd_l0_sd':0.1,
+        }
+        self.set_kc_hyperparams(**params)
+
+    def generate_kcs(self, n, mastery_thres=0.9):
+        # Generate n kcs
+        logger.debug("generate kcs for domain: %s" % self._id)
+        kcs = []
+        for i in range(n):
+            logger.debug("Generating kc #%i" % i)
+            pl0 = -1
+            while not ((pl0 >= 0) and (pl0 <= 1)):
+                pl0 = random.gauss(self.kc_hyperparams['m_l0'], 
+                                   self.kc_hyperparams['sd_l0'])
+        
+            pl0_sd = 0
+            while pl0_sd <= 0:
+                pl0_sd = random.gauss(self.kc_hyperparams['m_l0_sd'],
+                                      self.kc_hyperparams['m_l0_sd'])
+            pt = -1
+            while (pt <= 0) or (pt > 1):
+                pt = random.gauss(self.kc_hyperparams['m_t'], 
+                                  self.kc_hyperparams['sd_t'])
+            ps = -1
+            while (ps <= 0) or (ps > 1):
+                ps = random.gauss(self.kc_hyperparams['m_s'], 
+                                  self.kc_hyperparams['sd_s'])
+            pg = -1
+            while (pg <= 0) or (pg > 1):
+                pg = random.gauss(self.kc_hyperparams['m_g'], 
+                                  self.kc_hyperparams['sd_g'])
+            
+            m_time = random.gauss(self.kc_hyperparams['m_mt'],
+                                  self.kc_hyperparams['sd_mt'])
+            sd_time = m_time/4
+            kc = ContKC(self._id, pl0, pl0_sd, pt, ps, pg, m_time, sd_time)
+            logger.debug("KC: pl0: %f\tpl0_sd: %f\tpt: %f\tpg: %f\tps: %f\tmtime: %f\t sdtime: %f" % (kc.pl0, kc.pl0_sd, kc.pt, kc.ps, kc.pg, kc.m_time, kc.sd_time))
+            kcs.append(kc)
+            self.kcs.append(kc)
+
+        logger.debug("generated %i kcs" % len(kcs))
+        return kcs

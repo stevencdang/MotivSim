@@ -2,12 +2,14 @@
 # Author: Steven Dang stevencdang.com
 
 import logging
+import sys
+
 from pymongo import MongoClient
 from os import mkdir, listdir, path
 from collections.abc import Iterable
 
 from .mongo import get_db_params, connect
-from tutor.domain import Domain, KC
+from tutor.domain import *
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +25,10 @@ class DBDomainMapper:
         obj = self.db.domains.find_one({'_id': _id})
         logger.debug(str(obj))
         kcs = [kc for kc in self.db.kcs.find({"_id": {"$in": obj['kcs']}})]
-        out = Domain()
+
+        domain_type = getattr(sys.modules[__name__], obj['type'])
+
+        out = domain_type()
         out._id = obj['_id']
         if 'kc_hyperparams' in obj:
             out.kc_hyperparams = obj['kc_hyperparams']
@@ -33,14 +38,18 @@ class DBDomainMapper:
 
 
     def kc_from_dict(self, d):
-        kc = KC(d['domain_id'])
-        kc._id = d['_id']
-        kc.pl0 = d['pl0']
-        kc.pt = d['pt']
-        kc.ps = d['ps']
-        kc.pg = d['pg']
-        kc.m_time = d['m_time']
-        kc.sd_time = d['sd_time']
+        kc_type = getattr(sys.modules[__name__], d['type'])
+        kc = kc_type(d['domain_id'])
+        for field in d.keys():
+            if hasattr(kc, field):
+                attr = setattr(kc, field, d[field])
+        # kc._id = d['_id']
+        # kc.pl0 = d['pl0']
+        # kc.pt = d['pt']
+        # kc.ps = d['ps']
+        # kc.pg = d['pg']
+        # kc.m_time = d['m_time']
+        # kc.sd_time = d['sd_time']
 
         return kc
 
