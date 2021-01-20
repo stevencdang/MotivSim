@@ -18,7 +18,7 @@ from CanonicalAutocorrelationAnalysis.model import caaObject
 from analytics.featurization import *
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+# logger.setLevel(logging.DEBUG)
 
 
 class CAABatch:
@@ -48,17 +48,29 @@ class CAABatch:
     def get_index(self):
         return list(self.projections.keys())
 
-    def get_distances(self):
-        m = pd.DataFrame(index=self.get_index(), columns=self.get_index())
-        for i in self.get_index():
-            for j in self.get_index():
-                p1 = self.projections[i]
-                p2 = self.projections[j]
-                d = CAAProjection.distance(p1, p2)
-                m.loc[i,j] = d
+    def get_distances(self, batch=None):
 
+        if batch is None:
+            m = pd.DataFrame(index=self.get_index(), columns=self.get_index())
+            for i in self.get_index():
+                for j in self.get_index():
+                    p1 = self.projections[i]
+                    p2 = self.projections[j]
+                    d = CAAProjection.distance(p1, p2)
+                    m.loc[i,j] = d
+        else:
+            rows = batch.get_index()
+            cols = self.get_index()
+            m = pd.DataFrame(index=rows, columns=cols)
+            for i in rows:
+                for j in cols:
+                    p1 = batch.projections[i]
+                    p2 = self.projections[j]
+                    d = CAAProjection.distance(p1, p2)
+                    m.loc[i,j] = d
 
         return m
+
 
 
 
@@ -74,8 +86,8 @@ class CAAModel(caaObject.CAA):
 
 
     @classmethod
-    def from_caa_obj(cls, caa, data_proc, data_idx):
-        result = cls(caa.US, caa.VS, caa.ds, caa.rs, caa.penalty1, caa.penalty2, caa.trainingData, data_proc, data_idx)
+    def from_caa_obj(cls, caa, data_proc, data_idx, *argv):
+        result = cls(caa.US, caa.VS, caa.ds, caa.rs, caa.penalty1, caa.penalty2, caa.trainingData, data_proc, data_idx, *argv)
         return result
 
     @classmethod 
@@ -146,3 +158,10 @@ class CAAProjection(caaObject.Projection):
                'caa_model_id': self.caa_model_id
               }
         return obj
+
+
+class StudentCAAModel(CAAModel):
+
+    def __init__(self, US, VS, DS, error, penalty1, penalty2, trainingData, data_proc, data_idx, sid):
+        super().__init__(US, VS, DS, error, penalty1, penalty2, trainingData, data_proc, data_idx)
+        self.student_id = sid

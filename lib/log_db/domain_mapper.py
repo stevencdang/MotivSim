@@ -19,7 +19,7 @@ class DBDomainMapper:
 
 
     def get_from_db(self, _id):
-        logger.info(f"Retrieving domain from database with id: {_id}")
+        logger.debug(f"Retrieving domain from database with id: {_id}")
         obj = self.db.domains.find_one({'_id': _id})
         logger.debug(str(obj))
         kcs = [kc for kc in self.db.kcs.find({"_id": {"$in": obj['kcs']}})]

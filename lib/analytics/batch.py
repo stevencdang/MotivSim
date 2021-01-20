@@ -10,7 +10,7 @@ from datetime import datetime as dt
 import pandas as pd
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+# logger.setLevel(logging.DEBUG)
 
 class BatchCalculator:
 # Batch analytic calculation

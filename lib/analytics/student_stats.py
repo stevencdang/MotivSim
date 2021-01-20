@@ -92,7 +92,7 @@ class StudentStatCalc:
 
     def total_tx_stats(self, sids):
         # Calculates total time, activity, and proportions of outcomes
-        tx = pd.DataFrame(self.db.tutor_events.find({"stu_id": {'$in': sids}, 'type': "Tutor Input"}))
+        tx = pd.DataFrame(self.db.tutor_events.find({"stu_id": {'$in': sids}, 'type': "TutorInput"}))
         # Add kc field that reduces list of kcs to 1 kc
         tx['kc'] = tx.apply(lambda x: x['kcs'][0]['_id'], axis=1)
 
