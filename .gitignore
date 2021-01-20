@@ -16,6 +16,7 @@ notebooks/*venv
 # Testing files
 lib/mongo_settings.cfg
 lib/test/data/*
+test/*
 
 
 # Settings for local simulation
