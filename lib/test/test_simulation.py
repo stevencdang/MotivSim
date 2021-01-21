@@ -16,6 +16,7 @@ from tutor.action import Attempt, HintRequest
 from learner.selfeff_learner import SelfEfficacyLearner
 from learner.modular_learner import ModularLearner
 from learner.binary_skill_cog import BinarySkillCognition
+from learner.cognition import *
 from learner.decider import *
 
 from simulate.simple_tutor_simulation import SimpleTutorSimulation
@@ -76,6 +77,40 @@ def gen_curriculum(db, db_params):
 
     return domain, curric
 
+def gen_cont_curric(db, db_params):
+
+    # Generating domain
+    domain_params = {'m_l0': 0.45,
+                     'sd_l0': 0.155,
+		     'm_l0_sd': 0.1,
+		     'sd_l0_sd': 0.03,
+                     'm_t': 0.35,
+                     'sd_t': 0.13,#0.03,
+                     'm_s': 0.105,
+                     'sd_s': 0.055,
+                     'm_g': 0.45,#0.6,
+                     'sd_g': 0.105 
+    }
+    curric_params = {'num_units': 1,
+                     'mean_sections': 4,
+                     'stdev_sections': 2,
+                     'mean_unit_kcs': 22,
+                     'stdev_unit_kcs': 23,
+                     'section_kcs_lambda': 6,
+                     'mean_steps': 10,
+                     'stdev_steps': 4,
+                     'mean_prob_kcs': 6,
+                     'stdev_prob_kcs': 3,
+                     'num_practice': 400
+    }
+
+    domain, curric = CurriculumFactory.gen_curriculum(domain_params, curric_params)
+    db.domains.insert_one(domain.to_dict())
+    db.kcs.insert_many([kc.__dict__ for kc in domain.kcs])
+    curric_util = DB_Curriculum_Mapper(db_params)
+    curric_util.write_to_db(curric)
+
+    return domain, curric
 
 def test_simple_tutor():
     logger.info("**** Testing SimpleTutorSimulation ****")
@@ -137,9 +172,33 @@ def test_modlearner():
     # Print new contents of db
     db_util.peak()
 
+def test_biaslearner():
+    logger.info("***** Testing Modular learning with biased cognitive module *****")
+
+    db, db_util, db_params = init_db()
+    domain, curric = gen_cont_curric(db, db_params)
+
+    num_students = 1
+    for i in range(num_students):
+        ability = 0.5
+        cog = BiasSkillCognition(domain, ability)
+        ev_decider = RandValDecider()
+        decider = DiligentDecider(ev_decider)
+        stu = ModularLearner(domain, cog, decider)
+        logger.debug("inserting new student to db: %s" % str(stu.to_dict()))
+        db.students.insert_one(stu.to_dict())
+        logger.info("Simulating student #%i" % i)
+        sim = ModLearnerSimulation(domain, curric, stu)
+        sim.run()
+    logger.info("Finished simulation")
+    
+    # Print new contents of db
+    db_util.peak()
+
 
 
 if __name__ == "__main__":
     # test_simple_tutor()
     #test_selfeff_learner()
-    test_modlearner()
+    # test_modlearner()
+    test_biaslearner()
