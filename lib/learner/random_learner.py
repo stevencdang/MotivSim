@@ -16,16 +16,15 @@ class RandomLearner(Learner):
 
     def __init__(self, domain):
         super().__init__(domain)
-        self.type = "Random Learner"
 
-    def choose_action(self):
-        actions = self.cur_context.get_actions()
+    def choose_action(self, cntxt):
+        actions = cntxt.get_actions()
         choice = random.choice(actions)
         logger.debug("Choosing action: %s" % str(choice))
         return choice
 
-    def perform_action(self, action):
-        kc = self.cur_context.kc
+    def perform_action(self, action, cntxt):
+        kc = cntxt.kc
         logger.debug("Action is %s" % str(action))
         if action == Attempt:
             logger.debug("Aciton is attempt")
@@ -61,19 +60,9 @@ class RandomLearner(Learner):
             act = None
 
 
-        if self.cur_context.attempt == 0:
+        if cntxt.attempt == 0:
             logger.debug("Skill to update: %s" % str(kc))
             self.practice_skill(kc)
 
-        self.new_context = False
-
         return act
 
-    def update_state(self):
-        pass
-
-    def calc_expectancy(self, action):
-        pass
-
-    def calc_value(self, action):
-        pass

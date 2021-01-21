@@ -64,6 +64,7 @@ class StudentStatCalc:
 
         sim_students['values'] = sim_students.apply(lambda x: x['decider']['values'], axis=1)
         sim_students['diligence'] = sim_students.apply(lambda x: x['decider']['diligence'], axis=1)
+        sim_students['cog_ability'] = sim_students.apply(lambda x: x['cognition']['ability'], axis=1)
         sim_students.index = sim_students['_id']
         sim_students.drop(['_id'], axis=1, inplace=True)
         return sim_students

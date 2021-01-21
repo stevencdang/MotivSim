@@ -3,6 +3,7 @@
 import uuid
 import logging
 import random
+import copy
 
 from log_db import mongo
 from tutor.feedback import *
@@ -16,21 +17,12 @@ class Learner:
     def __init__(self, domain):
         self._id = str(uuid.uuid4())
         self.domain_id = domain._id
-        self.cur_context = None
-        self.new_context = False
-        self.state = LearnerState()
-        self.type = "Generic Learner"
+        self.type = type(self).__name__
 
         self.skills = {skill._id: random.choices([True, False], weights=[skill.pl0, (1-skill.pl0)], k=1)[0] for skill in domain.kcs}
 
-        # Initialize connection to database
-        self.db_params = mongo.get_db_params()
-        self.db = mongo.connect(self.db_params['url'], 
-                          self.db_params['port'], 
-                          self.db_params['name'], 
-                          self.db_params['user'], 
-                          self.db_params['pswd'])
-
+        self.state = {}
+        self.attributes = {}
 
     def practice_skill(self, skill):
         # Update skill
@@ -44,14 +36,10 @@ class Learner:
             if learned:
                 self.skills[skill._id] = learned
 
-    def update_context(self, context):
-        self.cur_context = context
-        self.new_context = True
-
-    def choose_action(self):
+    def choose_action(self, cntxt):
         pass
 
-    def perform_action(self):
+    def perform_action(self, action, cntxt):
         pass
 
     def process_feedback(self, fdbk):
@@ -60,7 +48,7 @@ class Learner:
         if isinstance(fdbk, HintResponse):
             logger.debug("Processing Hint Request response: %s" % str(fdbk))
 
-    def update_state(self):
+    def get_state(self):
         pass
 
     def calc_expectancy(self, action):
@@ -70,15 +58,21 @@ class Learner:
         pass
 
     def to_dict(self):
-        return {'_id': str(self._id),
-                'domain_id': str(self.domain_id),
-                'type': self.type,
-                'skills': {str(sid): self.skills[sid] for sid in self.skills}
-                }
+        d = copy.deepcopy(self.__dict__)
+        
+        # Persist state variables independently
+        keys = list(d['state'].keys())
+        for key in keys:
+            d[key] = d['state'][key]
+        d['state_fields'] = keys
+        d.pop('state', None)
 
+        # Persist attribute variables as independent keys
+        keys = list(d['attributes'].keys())
+        for key in keys:
+            d[key] = d['attributes'][key]
+        d['attribute_fields'] = keys
+        d.pop('attributes', None)
 
-class LearnerState:
-
-    def is_off_task(self):
-        return False 
-
+        # d['skills'] = {str(sid): self.skills[sid] for sid in self.skills}
+        return d

@@ -1,10 +1,13 @@
 # Base class for a learner dicision-making module
 # This module is responsible for simulating student decision processse
 
+import sys
 import uuid
 import logging
 import random
+import copy
 import numpy as np
+
 
 from log_db import mongo
 
@@ -21,17 +24,28 @@ class Decider:
 
     def __init__(self):
         self.type = type(self).__name__
+        logger.debug(f"Init {self.type} module")
 
-    def choose(self, choices, state, context):
+    def choose(self, choices, state, cntxt):
         pass
 
     def __str__(self):
         return str(self.to_dict())
 
     def to_dict(self):
-        out = self.__dict__
+        out = copy.deepcopy(self.__dict__)
         return out
 
+    @staticmethod
+    def from_dict(d):
+        dec_type = getattr(sys.modules[__name__], d['type'])
+        out = dec_type()
+        for key in d.keys():
+            try:
+                setattr(out, key, d[key])
+            except Exception as e:
+                logger.error(f"Issue setting attributes of new module isntance: {str}")
+        return out
 
 class EVDecider(Decider):
 
@@ -55,9 +69,9 @@ class EVDecider(Decider):
         }
 
 
-    def choose(self, choices, state, context):
+    def choose(self, choices, state, cntxt):
         # Calc choice distribution
-        choice_evs = self.calc_ev(choices, state, context)
+        choice_evs = self.calc_ev(choices, state, cntxt)
         total_ev = np.sum([val['ev'] for val in choice_evs.values()])
         pev = [choice_evs[choice.__name__]['ev']/total_ev for choice in choices]
         
@@ -66,24 +80,24 @@ class EVDecider(Decider):
 
         return choice, {"choice_evs": choice_evs, "pev": pev}
 
-    def calc_ev(self, choices, state, context):
+    def calc_ev(self, choices, state, cntxt):
         choice_evs = {choice.__name__:
-                      {'expectancy': self.calc_expectancy(choice, state, context),
-                       'value': self.calc_value(choice, state, context),
-                       'ev': self.calc_expectancy(choice, state, context)* self.calc_value(choice, state, context),
+                      {'expectancy': self.calc_expectancy(choice, state, cntxt),
+                       'value': self.calc_value(choice, state, cntxt),
+                       'ev': self.calc_expectancy(choice, state, cntxt)* self.calc_value(choice, state, cntxt),
                       }
               for choice in choices
         }
         return choice_evs
 
 
-    def calc_expectancy(self, action, state, context):
+    def calc_expectancy(self, action, state, cntxt):
         logger.debug("Calculating expectancy for action: %s" % str(action))
         if action == Attempt:
             self_eff = 0.5
             # Adjust expectancy for each hint
-            total_hints = context.hints_used + context.hints_avail
-            hint_exp = context.hints_used / total_hints
+            total_hints = cntxt.hints_used + cntxt.hints_avail
+            hint_exp = cntxt.hints_used / total_hints
             exp = self_eff + (1 - self_eff) * hint_exp
             return exp
         elif action == Guess:
@@ -94,7 +108,7 @@ class EVDecider(Decider):
                 exp = 1
             return 0.1
         elif action == HintRequest:
-            if context.hints_avail == 0:
+            if cntxt.hints_avail == 0:
                 return 0
             else:
                 return 1
@@ -103,39 +117,27 @@ class EVDecider(Decider):
         else:
             return 0
 
-    def calc_value(self, action, state, context):
+    def calc_value(self, action, state, cntxt):
         logger.debug("Calculating value for action: %s" % str(action))
         if action == Attempt:
             return self.values['attempt']
         elif action == Guess:
-            if context.learner_kc_knowledge:
+            if cntxt.learner_kc_knowledge:
                 return self.values['guess']
             else:
                 return 2*self.values['guess']
         elif action == HintRequest:
-            if context.learner_kc_knowledge:
+            if cntxt.learner_kc_knowledge:
                 return 0.25*self.values['hint request']
             else:
                 # Adjust value for each hint
-                total_hints = context.hints_used + context.hints_avail
-                hint_val = context.hints_avail / total_hints
+                total_hints = cntxt.hints_used + cntxt.hints_avail
+                hint_val = cntxt.hints_avail / total_hints
                 return self.values['hint request'] * hint_val
         elif action == OffTask:
             return self.values['off task']
         else:
             return 0
-
-    def to_dict(self):
-        out = super().to_dict()
-        out['values'] = self.values
-        out['self_eff'] = self.self_eff
-        return out
-
-    def from_dict(d):
-        out = EVDecider()
-        out.values = d['values']
-        out.self_eff = d['self_eff']
-        return out
 
 
 class DiligentDecider(Decider):
@@ -150,9 +152,9 @@ class DiligentDecider(Decider):
         else:
             self.diligence = dil
 
-    def choose(self, choices, state, context):
+    def choose(self, choices, state, cntxt):
         # Get base choice distribution
-        choice_evs = self.ev_decider.calc_ev(choices, state, context)
+        choice_evs = self.ev_decider.calc_ev(choices, state, cntxt)
         # Adjust ev for diligent actions
         for choice in choices:
             if self.is_diligent(choice):
@@ -231,7 +233,7 @@ class DomainSelfEffDecider(EVDecider):
 
         self.self_eff = se
 
-    def calc_self_eff(self, state, context):
+    def calc_self_eff(self, state, cntxt):
         ''' 
         Self-efficacy is [0,1]. Self-efficacy is calculated as the success rate on prior attempts.
         An initial self-efficacy ratio is defined per student and is comparable to a success rate
@@ -243,15 +245,31 @@ class DomainSelfEffDecider(EVDecider):
         self_eff = (init_success + state.total_success) / (init_attempts + state.total_attempts)
         return self_eff
 
-    def calc_expectancy(self, action, state, context):
+    def calc_expectancy(self, action, state, cntxt):
         logger.debug("Calculating expectancy for action: %s" % str(action))
         if action == Attempt:
-            self_eff = self.calc_self_eff(state, context)
+            self_eff = self.calc_self_eff(state, cntxt)
             # Adjust expectancy for each hint
-            total_hints = context.hints_used + context.hints_avail
-            hint_exp = context.hints_used / total_hints
+            total_hints = cntxt.hints_used + cntxt.hints_avail
+            hint_exp = cntxt.hints_used / total_hints
             exp = self_eff + (1 - self_eff) * hint_exp
             return exp
         else:
-            return super().calc_expectancy(action, state, context)
+            return super().calc_expectancy(action, state, cntxt)
+
+class DomainTunerDecider(EVDecider):
+
+    def choose(self, choices, state, cntxt):
+        # Calc choice distribution
+        choice_evs = self.calc_ev(choices, state, cntxt)
+        total_ev = np.sum([val['ev'] for val in choice_evs.values()])
+        pev = [choice_evs[choice.__name__]['ev']/total_ev for choice in choices]
+        
+        # Force choice as attempt
+        choice = Attempt
+        # while choice != Attempt:
+            # choice = random.choices(choices, weights=pev, k=1)[0]
+
+
+        return choice, {"choice_evs": choice_evs, "pev": pev}
 

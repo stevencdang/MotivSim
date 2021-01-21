@@ -7,6 +7,8 @@ import logging
 import random
 import uuid
 
+import simpy
+
 from tutor.domain import Domain
 from tutor.curriculum_factory import CurriculumFactory
 from tutor.simple_curriculum import SimpleCurriculum
@@ -22,6 +24,7 @@ from learner.decider import *
 from simulate.simple_tutor_simulation import SimpleTutorSimulation
 from simulate.self_eff_simulation import SelfEffSimulation
 from simulate.modlearner_simulation import ModLearnerSimulation
+from simulate.simulation import *
 
 from log_db import mongo
 from log_db.curriculum_mapper import DB_Curriculum_Mapper
@@ -195,10 +198,48 @@ def test_biaslearner():
     # Print new contents of db
     db_util.peak()
 
+def test_timed_simulation():
+    logger.info("***** Testing timed simulation *****")
+
+    db, db_util, db_params = init_db()
+    domain, curric = gen_cont_curric(db, db_params)
+
+    env = simpy.Environment()
+
+    num_students = 1
+    mastery_thres = 0.9
+    m_ses_len = 40
+    sd_ses_len = 8
+    max_ses_len = 60
+    for i in range(num_students):
+        # Create student
+        ability = random.triangular(-1, 1)
+        cog = BiasSkillCognition(domain, ability)
+        ev_decider = RandValDecider()
+        decider = DiligentDecider(ev_decider)
+        stu = ModularLearner(domain, cog, decider)
+        logger.debug("inserting new student to db: %s" % str(stu.to_dict()))
+        db.students.insert_one(stu.to_dict())
+
+        # Create tutor
+        tutor = SimpleTutor(curric, stu._id, mastery_thres)
+
+        # Initialize simulation processes
+        num_sessions = 3
+        sim = SingleStudentSim(env, stu, tutor, 
+                               num_sessions, m_ses_len, sd_ses_len, max_ses_len)
+        simpy.events.Process(env, sim.run())
+        
+    env.run()
+
+
+
+
 
 
 if __name__ == "__main__":
     # test_simple_tutor()
     #test_selfeff_learner()
     # test_modlearner()
-    test_biaslearner()
+    # test_biaslearner()
+    test_timed_simulation()

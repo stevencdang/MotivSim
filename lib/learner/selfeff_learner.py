@@ -18,20 +18,27 @@ class SelfEfficacyLearner(Learner):
 
     def __init__(self, domain, self_eff=None):
         super().__init__(domain)
-        self.type = "Self Efficacy Learner"
-        self.state = SelfEfficacyLearnerState()
-        self.state.skills = self.skills
-        self.min_off_task = 30 # 30 sec
-        self.max_off_task = 1200 # 20 minutes
-        self.mean_hint_time = 3 # seconds
-        self.sd_hint_time = 1 # seconds
-        self.mean_guess_time = 3 # seconds
-        self.sd_guess_time = 1 # seconds
-        self.diligence = random.gauss(2,.3)
+
+        # State Parameters
+        self.state['off_task'] = False
+        self.state['attempted'] = False
+        self.state['total_attempts'] = 0
+        self.state['total_success'] = 0
+
+        # Student Parameters
+        self.attributes['min_off_task'] = 30 # 30 sec
+        self.attributes['max_off_task'] = 1200 # 20 minutes
+        self.attributes['mean_hint_time'] = 3 # seconds
+        self.attributes['sd_hint_time'] = 1 # seconds
+        self.attributes['mean_guess_time'] = 3 # seconds
+        self.attributes['sd_guess_time'] = 1 # seconds
+        self.attributes['diligence'] = random.gauss(2,.3)
         if self.diligence <= 0:
-            self.diligence = 0.1
-        self.values = {}
-        self.self_eff = 0
+            self.attributes['diligence'] = 0.1
+        self.attributes['values'] = {}
+        self.attributes['self_eff'] = 0
+
+        # Call initialization methods
         self.init_values()
         self.init_self_eff(self_eff)
 
@@ -71,23 +78,23 @@ class SelfEfficacyLearner(Learner):
         elif se <= 0:
             se = 0.01
 
-        self.self_eff = se
+        self.attributes['self_eff'] = se
 
 
-    def choose_action(self):
-        actions = self.cur_context.get_actions()
-        action_evs = {str(action): {'expectancy': self.calc_expectancy(action),
+    def choose_action(self, cntxt):
+        actions = cntxt.get_actions()
+        action_evs = {str(action): {'expectancy': self.calc_expectancy(action, cntxt),
                             'value': self.calc_value(action)
                             }
               for action in actions
         }
         action_evs = {}
         for action in actions:
-            exp = self.calc_expectancy(action)
+            exp = self.calc_expectancy(action, cntxt)
             val = self.calc_value(action)
             # Diligence Multiplier
             if self.is_diligent(action):
-                action_evs[action.__name__] = self.diligence * exp*val  
+                action_evs[action.__name__] = self.attributes['diligence'] * exp*val  
             else:
                 action_evs[action.__name__] = exp*val
 
@@ -96,17 +103,17 @@ class SelfEfficacyLearner(Learner):
         logger.debug(str(pev))
 
         choice = random.choices(actions, weights=pev, k=1)[0]
-        decision = Decision(self, choice.__name__, self.cur_context.time, action_evs, pev, self.cur_context)
-        logger.debug("Logging decision: %s" % str(decision.to_dict()))
-        logger.debug("******************************************************")
-        self.db.decisions.insert_one(decision.to_dict())
+        decision = Decision(self, choice.__name__, cntxt.time, action_evs, pev, cntxt)
+        # logger.debug("Logging decision: %s" % str(decision.to_dict()))
+        # logger.debug("******************************************************")
+        # self.db.decisions.insert_one(decision.to_dict())
 
 
         logger.debug("Choosing action: %s" % str(choice))
         return choice
 
-    def perform_action(self, action):
-        kc = self.cur_context.kc
+    def perform_action(self, action, cntxt):
+        kc = cntxt.kc
         logger.debug("Action is %s" % str(action))
         if action == Attempt:
             logger.debug("Action is attempt")
@@ -121,13 +128,13 @@ class SelfEfficacyLearner(Learner):
             else:
                 weights = [kc.pg, (1 - kc.pg)]
             is_correct = random.choices([True, False], weights=weights, k=1)[0]
-            self.state.attempted = True
+            self.attempted = True
             # Make is_correct default to True to change later
             act = Attempt(time, is_correct)
             
         elif action == HintRequest:
             logger.debug("Action is HintRequest")
-            time = random.gauss(self.mean_hint_time, self.sd_hint_time)
+            time = random.gauss(self.attributes['mean_hint_time'], self.attributes['sd_hint_time'])
             # Lazy fiz to truncate gaussian
             if time < 0:
                 logger.debug("Action performed was less than 0 secs, channging to 0 sec")
@@ -138,7 +145,7 @@ class SelfEfficacyLearner(Learner):
             logger.debug("Action is Guess")
             weights = [0.01, 0.99]
             is_correct = random.choices([True, False], weights=weights, k=1)[0]
-            time = random.gauss(self.mean_guess_time, self.sd_guess_time)
+            time = random.gauss(self.attributes['mean_guess_time'], self.attributes['sd_guess_time'])
             # Lazy fiz to truncate gaussian
             if time < 0:
                 logger.debug("Action performed was less than 0 secs, channging to 0 sec")
@@ -149,7 +156,7 @@ class SelfEfficacyLearner(Learner):
             act = Guess(time, is_correct)
         elif action == OffTask:
             logger.debug("Action is %s" % str(action))
-            time = random.uniform(self.min_off_task, self.max_off_task)
+            time = random.uniform(self.attributes['min_off_task'], self.attributes['max_off_task'])
             # Lazy fiz to truncate gaussian
             if time < 0:
                 logger.debug("Action performed was less than 0 secs, channging to 0 sec")
@@ -162,38 +169,34 @@ class SelfEfficacyLearner(Learner):
             act = None
 
 
-        if self.cur_context.attempt == 0:
+        if cntxt.attempt == 0:
             logger.debug("Skill to update: %s" % str(kc))
             self.practice_skill(kc)
 
-        self.new_context = False
         logger.debug("Return action: %s" % str(act))
-        logged_action = LoggedAction(self, act, self.cur_context.time)
+        logged_action = LoggedAction(self, act, cntxt.time)
 
-        logger.debug("Logged action: %s" % str(logged_action.to_dict()))
-        self.db.actions.insert_one(logged_action.to_dict())
+        # logger.debug("Logged action: %s" % str(logged_action.to_dict()))
+        # self.db.actions.insert_one(logged_action.to_dict())
 
         return act
 
     def process_feedback(self, fdbk):
         if isinstance(fdbk, AttemptResponse):
             logger.debug("Processing Attempt response: %s" % str(fdbk))
-            self.state.total_attempts = self.state.total_attempts + 1
+            self.state['total_attempts'] = self.state['total_attempts'] + 1
             if fdbk.is_correct:
-                self.state.total_success = self.state.total_success + 1
+                self.state['total_success'] = self.state['total_success'] + 1
         if isinstance(fdbk, HintResponse):
             logger.debug("Processing Hint Request response: %s" % str(fdbk))
 
-    def update_state(self):
-        pass
-
-    def calc_expectancy(self, action):
+    def calc_expectancy(self, action, cntxt):
         logger.debug("Calculating expectancy for action: %s" % str(action))
         if action == Attempt:
             self_eff = self.calc_self_eff()
             # Adjust expectancy for each hint
-            total_hints = self.cur_context.hints_used + self.cur_context.hints_avail
-            hint_exp = self.cur_context.hints_used / total_hints
+            total_hints = cntxt.hints_used + cntxt.hints_avail
+            hint_exp = cntxt.hints_used / total_hints
             exp = self_eff + (1 - self_eff) * hint_exp
             return exp
         elif action == Guess:
@@ -213,19 +216,19 @@ class SelfEfficacyLearner(Learner):
     def calc_value(self, action):
         logger.debug("Calculating value for action: %s" % str(action))
         if action == Attempt:
-            return self.values['attempt']
+            return self.attributes['values']['attempt']
         elif action == Guess:
-            if self.cur_context.learner_kc_knowledge:
-                return self.values['guess']
+            if cntxt.learner_kc_knowledge:
+                return self.attributes['values']['guess']
             else:
-                return 2*self.values['guess']
+                return 2*self.attributes['values']['guess']
         elif action == HintRequest:
-            if self.cur_context.learner_kc_knowledge:
-                return 0.25*self.values['hint request']
+            if cntxt.learner_kc_knowledge:
+                return 0.25*self.attributes['values']['hint request']
             else:
-                return self.values['hint request']
+                return self.attributes['values']['hint request']
         elif action == OffTask:
-            return self.values['off task']
+            return self.attributes['values']['off task']
         else:
             return 0
 
@@ -237,12 +240,15 @@ class SelfEfficacyLearner(Learner):
 
         '''
         init_attempts = 1000
-        init_success = self.self_eff * init_attempts
-        self_eff = (init_success + self.state.total_success) / (init_attempts + self.state.total_attempts)
+        init_success = self.attributes['self_eff'] * init_attempts
+        self_eff = (init_success + self.state['total_success']) / (init_attempts + self.state['total_attempts'])
         return self_eff
 
     def is_off_task(self):
-        return self.state.is_off_task()
+        return self.state['off_task']
+
+    def has_attempted(self):
+        return self.state['attempted']
 
     def is_diligent(self, action):
         if action == Attempt:
@@ -253,35 +259,5 @@ class SelfEfficacyLearner(Learner):
             return True
         elif action == OffTask:
             return False
-
-    def to_dict(self):
-        result = super().to_dict()
-        result['min_off_task'] = self.min_off_task
-        result['max_off_task'] = self.max_off_task
-        result['mean_guess_time'] = self.mean_guess_time
-        result['sd_guess_time'] = self.sd_guess_time
-        result['diligence'] = self.diligence
-        result['self_eff'] = self.self_eff
-        result['values'] = self.values
-        result['total_attempts'] = self.state.total_attempts
-        result['total_success'] = self.state.total_success
-        return result
-
-
-class SelfEfficacyLearnerState(LearnerState):
-
-    def __init__(self):
-        self.off_task = False
-        self.attempted = False
-        self.skills = None
-        self.total_attempts = 0
-        self.total_success = 0
-
-    def is_off_task(self):
-        return self.off_task
-
-    def has_attempted(self):
-        return attempted
-
 
 

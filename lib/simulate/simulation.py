@@ -5,7 +5,10 @@ sys.path.append('..')
 
 import logging
 import uuid
+import random
 from datetime import datetime as dt
+
+import simpy
 
 from tutor.domain import Domain
 from tutor.simple_curriculum import SimpleCurriculum
@@ -72,6 +75,53 @@ class Simulation:
         curric = SimpleCurriculum(domain)
         curric.generate(num_units, num_sections, num_practice)
         return curric
+
+
+class TimedSimulation:
+    # Base Class
+
+    def __init__(self, env):
+        self._id = str(uuid.uuid4())
+        self.env = env
+
+    def run(self):
+        pass
+
+
+class SingleStudentSim(TimedSimulation):
+
+    def __init__(self, env, student, tutor,
+                 num_sessions, m_ses_len, sd_ses_len,
+                 max_ses_len):
+        super().__init__(env)
+        self.student = student
+        self.tutor = tutor
+        self.num_sessions = num_sessions
+        self.m_ses_len = m_ses_len
+        self.sd_ses_len = sd_ses_len
+        self.max_ses_len = max_ses_len
+
+    def create_session(self):
+        l = -1
+        while (l <= 0) or (l > self.max_ses_len):
+            l = random.gauss(self.m_ses_len, self.sd_ses_len)
+
+        start = self.env.now
+
+        ses_params = {"length": l,
+                      "start": start
+                     }
+        return ses_params
+
+
+    def run(self):
+        logger.info("Running Sim")
+        for i in range(self.num_sessions):
+            ses_params = self.create_session()
+            logger.info(f"Simulating session #{i} start at {ses_params['start']}")
+            yield self.env.timeout(ses_params['length'])
+        
+        
 
 
 class SimulationBatch:

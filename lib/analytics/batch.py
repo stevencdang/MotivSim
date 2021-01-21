@@ -23,7 +23,7 @@ class BatchCalculator:
             if calc_args is None:
                 results.append(calc(batch))
             else:
-                results.append(calc(batch, calc_args))
+                results.append(calc(batch, *calc_args))
         return pd.concat(results, axis=0)
 
 
