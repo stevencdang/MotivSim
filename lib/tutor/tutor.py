@@ -9,6 +9,7 @@ import random
 import datetime as dt
 
 from . import action
+from .session import Session
 from .feedback import *
 from log_db.tutor_log import TutorInput, SessionStart, SessionEnd
 from log_db import mongo
@@ -75,14 +76,16 @@ class Tutor:
     def log_login(self):
         logger.debug("Logging start of new session: %s" % str(self.session.login_time))
         tx = SessionStart(self.session.login_time)
-        tx._id = self.db.tutor_events.insert_one(tx.__dict__)
+        self.db.tutor_events.insert_one(tx.__dict__)
         logger.debug("session start: %s" % str(tx.__dict__))
+        return tx
 
     def log_logout(self):
         logger.debug("Logging end of session")
         tx = SessionEnd(self.session.logout_time)
-        tx._id = self.db.tutor_events.insert_one(tx.__dict__)
+        self.db.tutor_events.insert_one(tx.__dict__)
         logger.debug("session end: %s" % str(tx.__dict__))
+        return tx
 
 
 
@@ -121,7 +124,7 @@ class SimpleTutor(Tutor):
                 logger.debug("Is not first attempt")
 
             plt1 = self.state.mastery[kc]
-            self.log_input(inpt, plt, plt1)
+            tx = self.log_input(inpt, plt, plt1)
             self.state.attempt = self.state.attempt + 1
             
             # Increment step or problem if problem is complete
@@ -129,7 +132,7 @@ class SimpleTutor(Tutor):
                 self.update_state()
 
             fdbk = AttemptResponse(inpt.name, inpt.is_correct)
-            return fdbk
+            return fdbk, tx
 
         elif isinstance(inpt, action.HintRequest):
             logger.debug("Processing student hint request")
@@ -145,7 +148,7 @@ class SimpleTutor(Tutor):
                 logger.debug("Is not first attempt")
 
             plt1 = self.state.mastery[kc]
-            self.log_input(inpt, plt, plt1)
+            tx = self.log_input(inpt, plt, plt1)
             self.state.attempt = self.state.attempt + 1
 
             if self.state.hints_avail > 0: 
@@ -156,11 +159,11 @@ class SimpleTutor(Tutor):
             
             hint_msg = "Hint #%i" % self.state.hints_used
             fdbk = HintResponse(inpt.name, self.state.hints_used, self.state.hints_avail, hint_msg)
-            return fdbk
+            return fdbk, tx
 
         elif isinstance(inpt, action.OffTask):
             logger.debug("Processing student Offtask")
-            return None
+            return None, None
         else:
             raise IOError("Unable to process input of type: %s" % str(type(inpt)))
 
@@ -339,95 +342,18 @@ class SimpleTutor(Tutor):
                         inpt.time,
                         outcome,
                         self.state.step.kcs,
-                            plt,
-                            plt1,
-                            self.state.hints_used,
-                            self.state.hints_avail,
-                            self.state.attempt
+                        plt,
+                        plt1,
+                        self.state.hints_used,
+                        self.state.hints_avail,
+                        self.state.attempt
                  )
             
-        tx._id = self.db.tutor_events.insert_one(tx.to_dict()).inserted_id
+        # tx._id = self.db.tutor_events.insert_one(tx.to_dict()).inserted_id
         logger.debug("User Transaction: %s" % tx)
+
+        return tx
  
-
-class Session:
-
-    def __init__(self):
-        self._id = uuid.uuid4()
-        self.login_time = None
-        self.logout_time = None
-        self.last_input_time = None
-
-    def login(self, time=None):
-        if self.login_time == None:
-            if time is None:
-                self.login_time = dt.datetime.now()
-            else:
-                if type(time) == dt.datetime:
-                    self.login_time = time
-                else:
-                    raise TypeError("time must be of type datetime not '%s'" % str(type(time)))
-        else:
-            logger.warning("Attempted to login to new session after already logged in")
-
-    def logout(self, time=None):
-        if self.logout_time == None:
-            if time is None:
-                self.logout_time = dt.datetime.now()
-            else:
-                if type(time) == dt.datetime:
-                    self.logout_time = time
-                else:
-                    raise TypeError("time must be of type datetime not '%s'" % str(type(time)))
-        else:
-            logger.warning("Attempted to logout of session after already logged out")
-
-    def increment_time(self, duration):
-        # increment session time in seconds
-        if self.is_logged_out():
-            raise Exception("Can't increment time for seesion that is already logged out")
-        if self.last_input_time is not None:
-            time = self.last_input_time + dt.timedelta(seconds=duration)
-        else:
-            if self.is_logged_in():
-                time = self.login_time +  dt.timedelta(seconds=duration)
-            else:
-                raise Exception("Can't increment time for session that is not logged in")
-        self.update_last_input(time)
-
-
-    def update_last_input(self, time=None):
-        if time is None:
-            self.last_input_time = dt.datetime.now()
-        else:
-            if type(time) == dt.datetime:
-                self.last_input_time = time
-            else:
-                raise TypeError("time must be of type datetime not '%s'" % str(type(time)))
-        logger.debug("Latest input time: %s" % str(self.last_input_time))
-
-    def get_last_time(self):
-        if self.logout_time is not None:
-            return self.logout_time
-        if self.last_input_time is not None:
-            return self.last_input_time
-        if self.login_time is not None:
-            return self.login_time
-        logger.warning("No actions in this session")
-        return None
-
-    def is_logged_in(self):
-        if (self.login_time is not None) and (self.logout_time is None):
-            return True
-        else:
-            return False
-
-    def is_logged_out(self):
-        if (self.login_time is None) or \
-            ((self.login_time is not None) and (self.logout_time is not None)):
-            return True
-        else:
-            return False
 
 
 class SimpleTutorState:

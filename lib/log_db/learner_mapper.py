@@ -11,7 +11,6 @@ from collections.abc import Iterable
 from .domain_mapper import DBDomainMapper
 from learner.modular_learner import ModularLearner
 from learner.decider import *
-from learner.binary_skill_cog import *
 from learner.cognition import *
 
 logger = logging.getLogger(__name__)
@@ -78,8 +77,7 @@ class DBLearnerMapper:
         domain = DBDomainMapper(self.db).get_from_db(d['domain_id'])
 
         # Initialize from dict
-        out = modtype(domain)
-        out.update_with_dict(d)
+        out = modtype.from_dict(d)
 
         logger.debug(f"Recovered Cog Module: {str(out)}")
 

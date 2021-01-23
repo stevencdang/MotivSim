@@ -59,9 +59,9 @@ class CogTutorCurriculum(Curriculum):
             unit = Unit(self.domain_id, self._id)
 	 
             for j in range(num_sections):
-                num_kcs = round(nprand.exponential(section_kcs_lambda))
-                if num_kcs < 1:
-                    num_kcs = 1
+                num_kcs = -1
+                while num_kcs < 2:
+                    num_kcs = round(nprand.exponential(section_kcs_lambda))
                 
                 logger.debug("Generating section #%i with %i kcs" % (j, num_kcs))
                 section = Section(self.domain_id, self._id, unit._id)
@@ -83,9 +83,11 @@ class CogTutorCurriculum(Curriculum):
         practice_counts = {kc: 0 for kc in section.kcs}
         max_kcs = len(section.kcs)
         while max_kcs > np.sum([count >= num_practice for count in practice_counts.values()]):
-            num_steps = round(random.gauss(section.m_steps, section.sd_steps))
-            if num_steps < 1:
-                num_steps = 1
+            num_steps = -1
+            while num_steps < 1:
+                num_steps = round(random.gauss(section.m_steps, section.sd_steps))
+
+            
             num_kcs = round(random.triangular(1, num_steps, num_steps))
             if num_kcs > max_kcs:
                 num_kcs = max_kcs

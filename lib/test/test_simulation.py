@@ -6,6 +6,7 @@ sys.path.append('..')
 import logging
 import random
 import uuid
+import datetime as dt
 
 import simpy
 
@@ -17,7 +18,6 @@ from tutor.action import Attempt, HintRequest
 
 from learner.selfeff_learner import SelfEfficacyLearner
 from learner.modular_learner import ModularLearner
-from learner.binary_skill_cog import BinarySkillCognition
 from learner.cognition import *
 from learner.decider import *
 
@@ -211,6 +211,7 @@ def test_timed_simulation():
     m_ses_len = 40
     sd_ses_len = 8
     max_ses_len = 60
+    sim_start = dt.datetime.now()
     for i in range(num_students):
         # Create student
         ability = random.triangular(-1, 1)
@@ -226,7 +227,7 @@ def test_timed_simulation():
 
         # Initialize simulation processes
         num_sessions = 3
-        sim = SingleStudentSim(env, stu, tutor, 
+        sim = SingleStudentSim(env, sim_start, stu, tutor, 
                                num_sessions, m_ses_len, sd_ses_len, max_ses_len)
         simpy.events.Process(env, sim.run())
         

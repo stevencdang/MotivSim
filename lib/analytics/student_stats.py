@@ -26,7 +26,7 @@ from tutor.action import Attempt, HintRequest
 
 from learner.selfeff_learner import SelfEfficacyLearner
 from learner.modular_learner import ModularLearner
-from learner.binary_skill_cog import BinarySkillCognition
+from learner.cognition import *
 from learner.decider import *
 
 from simulate.modlearner_simulation import ModLearnerSimulation

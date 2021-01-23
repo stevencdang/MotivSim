@@ -15,8 +15,6 @@ from tutor.action import *
 from tutor.feedback import *
 from log_db.learner_log import *
 
-from .modular_learner_state import ModularLearnerState
-
 
 logger = logging.getLogger(__name__)
 

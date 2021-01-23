@@ -5,7 +5,6 @@ import logging
 import random
 
 from log_db import mongo
-from tutor.feedback import *
 
 from .learner import Learner
 from tutor.action import *
@@ -60,7 +59,7 @@ class ModularLearner(Learner):
         # self.db.decisions.insert_one(decision.to_dict())
 
         logger.debug("Choosing action: %s" % str(choice))
-        return choice
+        return choice, decision
 
     def perform_action(self, action, cntxt):
         kc = cntxt.kc
@@ -73,7 +72,7 @@ class ModularLearner(Learner):
                 time = 0.25 
 
             is_correct = self.cog.produce_answer(action, cntxt)
-            self.state.attempted = True
+            self.state['attempted'] = True
             # Make is_correct default to True to change later
             act = Attempt(time, is_correct)
             
@@ -104,12 +103,11 @@ class ModularLearner(Learner):
             logger.debug("Skill to update: %s" % str(kc))
             self.practice_skill(kc)
 
-        self.new_context = False
-        logger.debug("Return action: %s" % str(act))
-        logged_action = LoggedAction(self, act, cntxt.time)
+        # logger.debug("Return action: %s" % str(act))
+        # logged_action = LoggedAction(self, act, cntxt.time)
 
-        logger.debug("Logged action: %s" % str(logged_action.to_dict()))
-        self.db.actions.insert_one(logged_action.to_dict())
+        # logger.debug("Logged action: %s" % str(logged_action.to_dict()))
+        # self.db.actions.insert_one(logged_action.to_dict())
 
         return act
 
@@ -124,9 +122,11 @@ class ModularLearner(Learner):
 
 
     def to_dict(self):
+        # self.skills = copy.deepcopy(self.cog.skills)
         d = super().to_dict()
         d['cog'] = self.cog.to_dict()
         d['decider'] = self.decider.to_dict()
+        # self.skills = self.cog.skills
 
         return d
     

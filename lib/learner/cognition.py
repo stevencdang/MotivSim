@@ -12,8 +12,6 @@ from log_db.domain_mapper import DBDomainMapper
 from tutor.action import *
 from tutor.feedback import *
 
-from .modular_learner_state import ModularLearnerState
-
 
 logger = logging.getLogger(__name__)
 

@@ -8,7 +8,7 @@ import random
 import inspect
 import numpy as np
 
-from .learner import Learner, LearnerState
+from .learner import Learner
 from tutor.action import *
 from log_db.learner_log import *
 

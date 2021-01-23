@@ -24,6 +24,14 @@ class Learner:
         self.state = {}
         self.attributes = {}
 
+        # Initialize connection to database
+        # self.db_params = mongo.get_db_params()
+        # self.db = mongo.connect(self.db_params['url'], 
+                          # self.db_params['port'], 
+                          # self.db_params['name'], 
+                          # self.db_params['user'], 
+                          # self.db_params['pswd'])
+
     def practice_skill(self, skill):
         # Update skill
         
@@ -49,7 +57,9 @@ class Learner:
             logger.debug("Processing Hint Request response: %s" % str(fdbk))
 
     def get_state(self):
-        pass
+        state = copy.deepcopy(self.state)
+        state['skills'] = copy.deepcopy(self.skills)
+        return state
 
     def calc_expectancy(self, action):
         pass
