@@ -12,7 +12,7 @@ class Context:
 
 class SimpleTutorContext(Context):
 
-    def __init__(self, tutor_state, learner_state, session):
+    def __init__(self, tutor_state, learner_state, time):
 
         self.tutor_state = tutor_state
         self.cur_problem = tutor_state.problem
@@ -26,8 +26,8 @@ class SimpleTutorContext(Context):
         self.learner_off_task = learner_state['off_task']
         self.learner_kc_knowledge = learner_state['skills'][self.kc._id]
 
-        self.session = session
-        self.time = session.get_last_time()
+        # self.session = session
+        self.time = time
 
     def get_actions(self):
 

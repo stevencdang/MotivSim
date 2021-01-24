@@ -4,16 +4,28 @@ from collections.abc import Iterable
 import logging
 import copy
 import json
+import datetime as dt
 from uuid import UUID
+from dataclasses import dataclass, field
+from typing import List
+
+from tutor.domain import KC
 
 logger = logging.getLogger(__name__)
 
+@dataclass
 class Transaction:
 
-    def __init__(self, time):
+    time: dt.datetime
+
+    def __post_init__(self):
         self._id = str(uuid.uuid4())
-        self.type = None
-        self.time = time
+        self.type = type(self).__name__
+
+    # def __init__(self, time):
+        # self._id = str(uuid.uuid4())
+        # self.type = None
+        # self.time = time
 
     def to_dict(self):
         return self.__dict__
@@ -29,71 +41,69 @@ class TransactionEncoder(json.JSONEncoder):
         else:
             return json.JSONEncoder.default(self, obj)
 
-
+@dataclass
 class SessionStart(Transaction):
     
-    def __init__(self, time):
-        super().__init__(time)
-        self.type = type(self).__name__
+   session_id: str
 
 
+@dataclass
 class SessionEnd(Transaction):
     
-    def __init__(self, time):
-        super().__init__(time)
-        self.type = type(self).__name__
+   session_id: str
 
-
+@dataclass
 class TutorInput(Transaction):
-    
-    def __init__(self, 
-                 time,
-                 curric_id,
-                 unit_id, 
-                 section_id,
-                 prob_id,
-                 step_id,
-                 stu_id,
-                 duration,
-                 outcome,
-                 kcs,
-                 plt,
-                 plt1,
-                 hints_used,
-                 hints_avail,
-                 attempt
-                 ):
-        super().__init__(time)
-        self.type = type(self).__name__
-        self.curric_id = curric_id
-        self.unit_id = unit_id
-        self.section_id = section_id
-        self.prob_id = prob_id
-        self.step_id = step_id
-        self.stu_id = stu_id
-        self.duration = duration
-        self.outcome = outcome
-        if isinstance(kcs, Iterable):
-            logger.debug("Kcs is iterable: %s" % str(kcs))
-            self.kcs = kcs
-        elif kcs is None:
-            logger.debug("Kcs is None: %s" % str(kcs))
-            self.kcs = []
-        else:
-            logger.debug("Kcs is not iterable: %s" % str(kcs))
-            self.kcs = [kcs]
+   
+    curric_id: str
+    unit_id : str
+    section_id : str
+    prob_id : str
+    step_id : str
+    stu_id : str
+    duration : float
+    outcome : str
+    kcs : List[KC]
+    plt : float
+    plt1 : float
+    hints_used : int
+    hints_avail : int
+    attempt : int
+
+    # def __init__(self, 
+                 # time,
+                 # ):
+        # super().__init__(time)
+        # self.type = type(self).__name__
+        # self.curric_id = curric_id
+        # self.unit_id = unit_id
+        # self.section_id = section_id
+        # self.prob_id = prob_id
+        # self.step_id = step_id
+        # self.stu_id = stu_id
+        # self.duration = duration
+        # self.outcome = outcome
+        # if isinstance(kcs, Iterable):
+            # logger.debug("Kcs is iterable: %s" % str(kcs))
+            # self.kcs = kcs
+        # elif kcs is None:
+            # logger.debug("Kcs is None: %s" % str(kcs))
+            # self.kcs = []
+        # else:
+            # logger.debug("Kcs is not iterable: %s" % str(kcs))
+            # self.kcs = [kcs]
         
-        self.plt = plt
-        self.plt1 = plt1
-        self.hints_used = hints_used
-        self.hints_avail = hints_avail
-        self.attempt = attempt
+        # self.plt = plt
+        # self.plt1 = plt1
+        # self.hints_used = hints_used
+        # self.hints_avail = hints_avail
+        # self.attempt = attempt
 
 
     def __str__(self):
-        out = copy.deepcopy(self.__dict__)
+        out = self.to_dict()
         out['kcs'] = [str(kc) for kc in out['kcs']]
-        return str(self.to_dict())
+        return str(out)
 
 
     def to_dict(self):

@@ -7,7 +7,6 @@ import uuid
 import random
 import datetime as dt
 
-from typing import List
 from dataclasses import dataclass, field
 
 from . import action
@@ -104,8 +103,13 @@ class ClassSession:
 
     start: dt.datetime
     end: dt.datetime
+    sim_id: str
     _id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    type: str = ""
     students: list = field(default_factory=list)
+
+    def __post_init__(self):
+        self.type = type(self).__name__
 
     def length(self):
         return (self.end - self.start).total_seconds()

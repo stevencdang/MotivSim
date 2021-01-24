@@ -198,6 +198,7 @@ def test_biaslearner():
     # Print new contents of db
     db_util.peak()
 
+
 def test_timed_simulation():
     logger.info("***** Testing timed simulation *****")
 
@@ -226,7 +227,7 @@ def test_timed_simulation():
         tutor = SimpleTutor(curric, stu._id, mastery_thres)
 
         # Initialize simulation processes
-        num_sessions = 3
+        num_sessions = 30
         sim = SingleStudentSim(env, sim_start, stu, tutor, 
                                num_sessions, m_ses_len, sd_ses_len, max_ses_len)
         simpy.events.Process(env, sim.run())

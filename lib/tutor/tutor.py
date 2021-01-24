@@ -15,6 +15,7 @@ from log_db.tutor_log import TutorInput, SessionStart, SessionEnd
 from log_db import mongo
 
 logger = logging.getLogger(__name__)
+# logger.setLevel(logging.DEBUG)
 
 class Tutor:
 
@@ -24,82 +25,59 @@ class Tutor:
         self.stu_id = stu_id
         self.mastery_thres = mastery_thres
         self.state = None
-        self.session = None
 
-        # Initialize connection to database
-        self.db_params = mongo.get_db_params()
-        self.db = mongo.connect(self.db_params['url'], 
-                          self.db_params['port'], 
-                          self.db_params['name'], 
-                          self.db_params['user'], 
-                          self.db_params['pswd'])
+        self.init_student_model()
+        self.init_tutor()
 
-    def start_new_session(self, time=None):
-        logger.debug("Attempting Starting new session")
-        if self.session is not None:
-            if self.session.is_logged_in():
-                logger.error("Can't start new session when user session already exists")
-            else:
-                self.session = Session()
-                self.session.login(time)
-                self.log_login()
-                logger.debug("Created session and logged user in")
-        else:
-            self.session = Session()
-            self.session.login(time)
-            self.log_login()
-            logger.debug("Created session and logged user in")
-
-    def process_input(self, inpt):
-        # This method should take the input, evaluate it, update internal state, and provide feedback
-        pass
-
-    def has_more(self):
-        # this method should evaluate the current tutor state to return True if the tutor has more practice available for the student
-        pass
-
-    def end_session(self, time=None):
-        logger.debug("Attempting end session")
-        if self.session is not None:
-            if not self.session.is_logged_in():
-                logger.error("Can't end session because user has not logged in yet")
-            else:
-                logger.debug("Logging user out of  session")
-                self.session.logout(time)
-                self.log_logout()
-        else:
-            logger.error("Can't end session because no session exists")
 
     def init_student_model(self):
         pass
 
-    def log_login(self):
-        logger.debug("Logging start of new session: %s" % str(self.session.login_time))
-        tx = SessionStart(self.session.login_time)
-        self.db.tutor_events.insert_one(tx.__dict__)
-        logger.debug("session start: %s" % str(tx.__dict__))
+    def init_tutor(self):
+        pass
+
+    def login(self, session, time):
+        logger.debug(f"Logging start of new session: {time}")
+        tx = SessionStart(session_id=session._id, time=time)
+        logger.debug(f"session start: {str(tx)}")
         return tx
 
-    def log_logout(self):
+    def logout(self, session, time):
         logger.debug("Logging end of session")
-        tx = SessionEnd(self.session.logout_time)
-        self.db.tutor_events.insert_one(tx.__dict__)
-        logger.debug("session end: %s" % str(tx.__dict__))
+        tx = SessionEnd(session_id=session._id, time=time)
+        logger.debug(f"session end: {tx.__dict__}")
         return tx
 
+    def process_input(self, inpt, time):
+        if isinstance(inpt, action.Attempt) or isinstance(inpt, action.Guess):
+            return self.process_attempt(inpt, time)
+        elif isinstance(inpt, action.HintRequest):
+            return self.process_hint(inpt, time)
+        elif isinstance(inpt, action.OffTask):
+            logger.debug("Processing student Offtask")
+            return None, None
+        else:
+            raise IOError("Unable to process input of type: %s" % str(type(inpt)))
+
+    def has_more(self):
+        # this method should evaluate the current tutor state to return True if the tutor has more practice available for the student
+        pass
+    
+    def process_attempt(self, inpt, time):
+        pass
+
+    def process_hint(self, inpt, time):
+        pass
 
 
 
 class SimpleTutor(Tutor):
 
     def __init__(self, curric, stu_id, mastery_thres=0.9):
-        super().__init__(curric, stu_id)
-        self.state = SimpleTutorState()
-        self.init_student_model()
-        self.init_tutor()
+        super().__init__(curric, stu_id, mastery_thres)
 
     def init_student_model(self):
-        logger.debug("Initializing student model for simple list of kcs")
+        self.state = SimpleTutorState()
         stu_mdl = {kc: kc.pl0 for kc in self.curric.domain.kcs}
         self.state.mastery = stu_mdl
 
@@ -107,67 +85,57 @@ class SimpleTutor(Tutor):
         try:
             self.set_next_unit()
         except Exception as e:
-            logger.warning(e)
+            logger.warning(f"Error while initializing tutor: {str(e)}")
        
-    def process_input(self, inpt):
-        # Increment clock to time inpt occured
-        self.session.increment_time(inpt.time)
-        if isinstance(inpt, action.Attempt) or isinstance(inpt, action.Guess):
-            logger.debug("Processing student attempt and updating kc specific pL0")
-            kc = self.state.step.kcs[0]
-            plt = self.state.mastery[kc]
+    def process_attempt(self, inpt, time):
+        logger.debug("Processing student attempt and updating kc specific pL0")
+        kc = self.state.step.kcs[0]
+        plt = self.state.mastery[kc]
 
-            if self.state.attempt == 0:
-                logger.debug("Is first attempt. updating skill")
-                self.update_skill(kc, inpt.is_correct)
-            else:
-                logger.debug("Is not first attempt")
-
-            plt1 = self.state.mastery[kc]
-            tx = self.log_input(inpt, plt, plt1)
-            self.state.attempt = self.state.attempt + 1
-            
-            # Increment step or problem if problem is complete
-            if inpt.is_correct:
-                self.update_state()
-
-            fdbk = AttemptResponse(inpt.name, inpt.is_correct)
-            return fdbk, tx
-
-        elif isinstance(inpt, action.HintRequest):
-            logger.debug("Processing student hint request")
-            logger.debug("Hints avail: %i\tHints use: %s" % (self.state.hints_avail, self.state.hints_used))
-
-            kc = self.state.step.kcs[0]
-            plt = self.state.mastery[kc]
-
-            if self.state.attempt == 0:
-                logger.debug("Is first attempt. updating skill")
-                self.update_skill(kc, False) # Treat hint request as an incorrect on first attempt
-            else:
-                logger.debug("Is not first attempt")
-
-            plt1 = self.state.mastery[kc]
-            tx = self.log_input(inpt, plt, plt1)
-            self.state.attempt = self.state.attempt + 1
-
-            if self.state.hints_avail > 0: 
-                self.state.hints_used = self.state.hints_used + 1
-                self.state.hints_avail = self.state.hints_avail - 1
-            else:
-                logger.debug("No additional hints available")
-            
-            hint_msg = "Hint #%i" % self.state.hints_used
-            fdbk = HintResponse(inpt.name, self.state.hints_used, self.state.hints_avail, hint_msg)
-            return fdbk, tx
-
-        elif isinstance(inpt, action.OffTask):
-            logger.debug("Processing student Offtask")
-            return None, None
+        if self.state.attempt == 0:
+            logger.debug("Is first attempt. updating skill")
+            self.update_skill(kc, inpt.is_correct)
         else:
-            raise IOError("Unable to process input of type: %s" % str(type(inpt)))
+            logger.debug("Is not first attempt")
 
+        plt1 = self.state.mastery[kc]
+        tx = self.log_input(time, inpt, plt, plt1)
+        self.state.attempt = self.state.attempt + 1
         
+        # Increment step or problem if problem is complete
+        if inpt.is_correct:
+            self.update_state()
+
+        fdbk = AttemptResponse(inpt.name, inpt.is_correct)
+        return fdbk, tx
+
+    def process_hint(self, inpt, time):
+        logger.debug("Processing student hint request")
+        logger.debug("Hints avail: %i\tHints use: %s" % (self.state.hints_avail, self.state.hints_used))
+
+        kc = self.state.step.kcs[0]
+        plt = self.state.mastery[kc]
+
+        if self.state.attempt == 0:
+            logger.debug("Is first attempt. updating skill")
+            self.update_skill(kc, False) # Treat hint request as an incorrect on first attempt
+        else:
+            logger.debug("Is not first attempt")
+
+        plt1 = self.state.mastery[kc]
+        tx = self.log_input(time, inpt, plt, plt1)
+        self.state.attempt = self.state.attempt + 1
+
+        if self.state.hints_avail > 0: 
+            self.state.hints_used = self.state.hints_used + 1
+            self.state.hints_avail = self.state.hints_avail - 1
+        else:
+            logger.debug("No additional hints available")
+        
+        hint_msg = "Hint #%i" % self.state.hints_used
+        fdbk = HintResponse(inpt.name, self.state.hints_used, self.state.hints_avail, hint_msg)
+        return fdbk, tx
+
     def update_state(self):
         ### Update the tutor after completing a problem-step
         
@@ -234,7 +202,9 @@ class SimpleTutor(Tutor):
             # logger.debug("No unit currently set. Setting unit before setting section")
             # self.set_next_unit()
         compl_sections = self.state.completed[self.state.unit].keys()
+        # logger.debug(f"Num of sections: {len(compl_sections)}")
         avail_sections = [sect for sect in self.state.unit.sections if sect not in compl_sections]
+        # logger.debug(f"Num of avail sections: {len(avail_sections)}")
         while len(avail_sections) > 0:
             next_sect = avail_sections[0]
             self.state.section = next_sect
@@ -318,7 +288,7 @@ class SimpleTutor(Tutor):
             logger.debug("Not updating skill because already past mastery threshold")
 
 
-    def log_input(self, inpt, plt, plt1):
+    def log_input(self, time, inpt, plt, plt1):
         if isinstance(inpt, action.Attempt) or isinstance(inpt, action.Guess):
             logger.debug("Logging student attempt")
             if inpt.is_correct:
@@ -332,21 +302,21 @@ class SimpleTutor(Tutor):
             raise IOError("Unable to generate log entry for input of type: %s" % str(type(inpt)))
 
         kc = self.state.step.kcs[0]
-        tx = TutorInput(self.session.last_input_time,
-                        self.curric._id,
-                        self.state.unit._id,
-                        self.state.section._id,
-                        self.state.problem._id,
-                        self.state.step._id,
-                        self.stu_id,
-                        inpt.time,
-                        outcome,
-                        self.state.step.kcs,
-                        plt,
-                        plt1,
-                        self.state.hints_used,
-                        self.state.hints_avail,
-                        self.state.attempt
+        tx = TutorInput(time=time,
+                        curric_id=self.curric._id,
+                        unit_id=self.state.unit._id,
+                        section_id=self.state.section._id,
+                        prob_id=self.state.problem._id,
+                        step_id=self.state.step._id,
+                        stu_id=self.stu_id,
+                        duration=inpt.time,
+                        outcome=outcome,
+                        kcs=self.state.step.kcs,
+                        plt=plt,
+                        plt1=plt1,
+                        hints_used=self.state.hints_used,
+                        hints_avail=self.state.hints_avail,
+                        attempt=self.state.attempt
                  )
             
         # tx._id = self.db.tutor_events.insert_one(tx.to_dict()).inserted_id
@@ -386,4 +356,7 @@ class SimpleTutorState:
         else:
             logger.error("Can't get mastery of section kcs when no section is currently set")
             raise Exception("Can't get mastery of section kcs when no section is currently set")
+
+    def __str__(self):
+        return str(self.__dict__)
 
