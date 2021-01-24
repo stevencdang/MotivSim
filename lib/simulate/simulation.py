@@ -162,7 +162,7 @@ class SingleStudentSim(TimedSimulation):
         
         start_hour = math.floor(class_start)
         start_min = int((class_start - start_hour)*60)
-        logger.info(f"Class start hour: {start_hour}\tminute: {start_min}")
+        logger.debug(f"Class start hour: {start_hour}\tminute: {start_min}")
         self.class_start = dt.time(hour=start_hour, minute=start_min)
 
         
@@ -230,10 +230,10 @@ class SingleStudentSim(TimedSimulation):
 
                 yield self.env.timeout(action.time)
         except simpy.Interrupt as i:
-            logger.info(f"***** Studying was interrupted by: {i} *****")
+            logger.debug(f"***** Studying was interrupted by: {i} *****")
             return
 
-        logger.info("***** STudent completed studying all tutor content *****")
+        logger.debug("***** STudent completed studying all tutor content *****")
 
 
 
@@ -241,13 +241,18 @@ class SingleStudentSim(TimedSimulation):
 
 
     def run(self):
-        logger.info("Running Sim")
+        logger.info(f"Starting Sim for student {self.student._id}")
         for i in range(self.num_sessions):
             # Start a new session and wait to start work
             session = self.get_next_class_session()
-            logger.debug(f"Simulating session #{i} start at {session.start}, sim time {self.get_sim_time()} and end at {session.end}")
+            logger.info(f"Student {self.student._id}\nSimulating session #{i} start at {session.start}, sim time {self.get_sim_time()} and end at {session.end}")
             yield self.wait_for_class_start(session)
             logger.debug(f"Session starting: {self.get_sim_time()}")
+
+            # Start working
+            delay = self.student.start_working(session.length())
+            logger.debug(f"Starting work in {delay/60} minutes")
+            yield self.env.timeout(delay)
 
             # Login to tutor
             tx = self.tutor.login(session, self.get_sim_time())
@@ -261,6 +266,9 @@ class SingleStudentSim(TimedSimulation):
             # Interrupt studying if necessary
             if not studying.triggered:
                 studying.interrupt("End of Class")
+            else:
+                # Wait until end of class if studening was finished first
+                yield end_of_class
 
             # Logout of Tutor
             tx = self.tutor.logout(session, self.get_sim_time())

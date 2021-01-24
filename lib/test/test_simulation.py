@@ -59,7 +59,7 @@ def gen_curriculum(db, db_params):
                      'm_g': 0.45,#0.6,
                      'sd_g': 0.105 
     }
-    curric_params = {'num_units': 5,
+    curric_params = {'num_units': 1,
                      'mean_sections': 4,
                      'stdev_sections': 2,
                      'mean_unit_kcs': 22,
@@ -94,7 +94,7 @@ def gen_cont_curric(db, db_params):
                      'm_g': 0.45,#0.6,
                      'sd_g': 0.105 
     }
-    curric_params = {'num_units': 1,
+    curric_params = {'num_units': 5,
                      'mean_sections': 4,
                      'stdev_sections': 2,
                      'mean_unit_kcs': 22,
@@ -207,7 +207,7 @@ def test_timed_simulation():
 
     env = simpy.Environment()
 
-    num_students = 1
+    num_students = 5
     mastery_thres = 0.9
     m_ses_len = 40
     sd_ses_len = 8
@@ -227,10 +227,10 @@ def test_timed_simulation():
         tutor = SimpleTutor(curric, stu._id, mastery_thres)
 
         # Initialize simulation processes
-        num_sessions = 30
+        num_sessions = 3
         sim = SingleStudentSim(env, sim_start, stu, tutor, 
                                num_sessions, m_ses_len, sd_ses_len, max_ses_len)
-        simpy.events.Process(env, sim.run())
+        env.process(sim.run())
         
     env.run()
 

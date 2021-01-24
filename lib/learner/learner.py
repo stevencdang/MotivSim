@@ -67,6 +67,9 @@ class Learner:
     def calc_value(self, action):
         pass
 
+    def start_working(self):
+        pass
+
     def to_dict(self):
         d = copy.deepcopy(self.__dict__)
         

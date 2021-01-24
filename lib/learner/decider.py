@@ -34,6 +34,10 @@ class Decider:
         out = copy.deepcopy(self.__dict__)
         return out
 
+    def start_working(self, max_t):
+        # Default to start working immediately
+        return 0
+
     @staticmethod
     def from_dict(d):
         dec_type = getattr(sys.modules[__name__], d['type'])
@@ -144,9 +148,7 @@ class DiligentDecider(Decider):
         super().__init__()
         self.ev_decider = ev_decider
         if dil is None:
-            self.diligence = random.gauss(2,.3)
-            if self.diligence <= 0:
-                self.diligence = 0.1
+            self.diligence = random.gauss(0,2)
         else:
             self.diligence = dil
 
@@ -156,7 +158,11 @@ class DiligentDecider(Decider):
         # Adjust ev for diligent actions
         for choice in choices:
             if self.is_diligent(choice):
-                choice_evs[choice.__name__]['ev'] = self.diligence * choice_evs[choice.__name__]['ev']
+                if self.diligence < 0:
+                    choice_evs[choice.__name__]['ev'] = 1/self.diligence * choice_evs[choice.__name__]['ev']
+                else:
+                    choice_evs[choice.__name__]['ev'] = self.diligence * choice_evs[choice.__name__]['ev']
+
 
         # Calc choice distribution
         total_ev = np.sum([val['ev'] for val in choice_evs.values()])
@@ -176,6 +182,24 @@ class DiligentDecider(Decider):
             return True
         elif action == OffTask:
             return False
+
+    def start_working(self, max_t):
+        mean_start = 5*60 # 5 minutes
+        if max_t < mean_start:
+            mean_start = max_t
+        #Rescale diligence to standard deviations
+        w = self.diligence / 2
+
+        mu = mean_start - 2*(w * 60)
+        sd = 180 - 6*(w * 60)
+        if sd <= 0.1:
+            sd = 0.1
+        delay = -1
+        while (delay < 0) or (delay > max_t):
+            delay = np.random.normal(mu, sd)
+
+        logger.debug(f"Diligence: {self.diligence}\t max_t: {max_t/60}\tmu: {mu/60}\tsd: {sd/60}\tdelay: {delay/60}")
+        return delay
 
     def to_dict(self):
         out = self.ev_decider.to_dict()

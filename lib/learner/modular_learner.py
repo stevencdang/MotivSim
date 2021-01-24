@@ -120,6 +120,8 @@ class ModularLearner(Learner):
         if isinstance(fdbk, HintResponse):
             logger.debug("Processing Hint Request response: %s" % str(fdbk))
 
+    def start_working(self, max_t):
+        return self.decider.start_working(max_t)
 
     def to_dict(self):
         # self.skills = copy.deepcopy(self.cog.skills)
