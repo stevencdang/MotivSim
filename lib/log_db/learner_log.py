@@ -44,6 +44,7 @@ class LoggedAction:
         self.student_id = student._id
         self.action = action
         self.time = time
+        self.decision_id = None
 
     def to_dict(self):
         result = copy.deepcopy(self.__dict__)
@@ -51,5 +52,6 @@ class LoggedAction:
         # result['action'] = self.action.to_dict()
         return result
         
+
 
 

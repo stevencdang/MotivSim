@@ -3,6 +3,7 @@
 
 import logging
 import sys
+from queue import Queue
 
 from pymongo import MongoClient
 from os import mkdir, listdir, path
@@ -28,7 +29,10 @@ class SimLogger:
         self.student = stu
         self.tutor = tutor
 
-        # self.state = {}
+        self.state = {
+            'last_decision': [],
+            'last_actions':  [],
+        }
 
         self.max_queue = 1000
 
@@ -40,7 +44,8 @@ class SimLogger:
 
     def log_decision(self, d):
         logger.debug("Logging decision: %s" % str(d.to_dict()))
-        # self.db.decisions.insert_one(d.to_dict())
+        self.state['last_decision'].append(d)
+
         self.decisions.append(d)
         if len(self.decisions) > self.max_queue:
             logger.info("***** Writing Decision queue to db *****")
@@ -53,8 +58,15 @@ class SimLogger:
         logger.debug("Return action: %s" % str(d))
         logged_action = LoggedAction(self.student, d, cntxt.time)
         logger.debug("Logged action: %s" % str(logged_action.to_dict()))
-        # self.db.actions.insert_one(logged_action.to_dict())
-        self.actions.append(d)
+        
+        # Add decision_id of most recent decision to action before logging
+        last_dec = self.state['last_decision'].pop()
+        logged_action.decision_id = last_dec._id
+
+        self.state['last_actions'].append(logged_action)
+        
+        self.actions.append(logged_action)
+
         if len(self.actions) > self.max_queue:
             logger.info("***** Writing Action queue to db *****")
             self.db.actions.insert_many([act.to_dict() for act in self.actions])
@@ -64,7 +76,12 @@ class SimLogger:
 
     def log_transaction(self, d):
         logger.debug("Logging transaction: {d.to_dict()}")
-        # self.db.tutor_events.insert_one(d.to_dict())
+
+        # Add action_ids of most recent actions to latest transaction before logging
+        action_ids = [act._id for act in self.state['last_actions']]
+        d.action_ids = action_ids
+        self.state['last_actions'] = []
+
         self.transactions.append(d)
         if len(self.transactions) > self.max_queue:
             logger.info("***** Writing Transaction queue to db *****")

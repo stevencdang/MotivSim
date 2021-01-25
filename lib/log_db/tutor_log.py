@@ -69,6 +69,7 @@ class TutorInput(Transaction):
     hints_used : int
     hints_avail : int
     attempt : int
+    action_ids: list = field(default_factory=list)
 
     # def __init__(self, 
                  # time,
