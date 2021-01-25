@@ -15,6 +15,7 @@ import simpy
 
 from log_db import mongo
 from log_db.learner_log import *
+from log_db.sim_logger import *
 from tutor.domain import Domain
 from context.context import *
 from tutor.simple_curriculum import SimpleCurriculum
@@ -88,13 +89,6 @@ class TimedSimulation:
         # Datetime stamp associated with 0 in simulation time
         self.start = start
         
-        # Initialize connection to database
-        db_params = mongo.get_db_params()
-        self.db = mongo.connect(db_params['url'], 
-                              db_params['port'], 
-                              db_params['name'], 
-                              db_params['user'], 
-                              db_params['pswd'])
 
     def run(self):
         """
@@ -145,6 +139,8 @@ class SingleStudentSim(TimedSimulation):
                       'classes': []}
 
         self.class_start = None
+
+        self.log = SimLogger(self.student, self.tutor)
 
         self.set_class_start()
 
@@ -210,16 +206,18 @@ class SingleStudentSim(TimedSimulation):
                 t = self.get_sim_time()
                 cntxt = ClassSessionContext(self.tutor.state, self.student.get_state(), session, t)
                 choice, decision = self.student.choose_action(cntxt)
+                self.log.log_decision(decision)
                 
-                logger.debug("Logging decision: %s" % str(decision.to_dict()))
-                self.db.decisions.insert_one(decision.to_dict())
+                # logger.debug("Logging decision: %s" % str(decision.to_dict()))
+                # self.db.decisions.insert_one(decision.to_dict())
 
                 action = self.student.perform_action(choice, cntxt)
+                self.log.log_action(action, cntxt)
                 
-                logger.debug("Return action: %s" % str(action))
-                logged_action = LoggedAction(self.student, action, cntxt.time)
-                logger.debug("Logged action: %s" % str(logged_action.to_dict()))
-                self.db.actions.insert_one(logged_action.to_dict())
+                # logger.debug("Return action: %s" % str(action))
+                # logged_action = LoggedAction(self.student, action, cntxt.time)
+                # logger.debug("Logged action: %s" % str(logged_action.to_dict()))
+                # self.db.actions.insert_one(logged_action.to_dict())
 
                 if isinstance(action, StopWork):
                     logger.info(f"Student with diligence {self.student.decider.diligence} \
@@ -232,7 +230,8 @@ class SingleStudentSim(TimedSimulation):
                 
                 if feedback is not None:
                     self.student.process_feedback(feedback)
-                    self.db.tutor_events.insert_one(tx.to_dict())
+                    self.log.log_transaction(tx)
+                    # self.db.tutor_events.insert_one(tx.to_dict())
 
                 yield self.env.timeout(action.time)
         except simpy.Interrupt as i:
@@ -247,44 +246,53 @@ class SingleStudentSim(TimedSimulation):
 
 
     def run(self):
-        logger.info(f"Starting Sim for student {self.student._id}")
-        for i in range(self.num_sessions):
-            # Start a new session and wait to start work
-            session = self.get_next_class_session()
-            logger.info(f"Student {self.student._id}\nSimulating session #{i} start at {session.start}, sim time {self.get_sim_time()} and end at {session.end}")
-            yield self.wait_for_class_start(session)
-            logger.debug(f"Student {self.student._id} Session starting: {self.get_sim_time()}\tscheduled start: {session.start}")
+        try:
+            logger.info(f"Starting Sim for student {self.student._id}")
+            for i in range(self.num_sessions):
+                # Start a new session and wait to start work
+                session = self.get_next_class_session()
+                logger.info(f"Student {self.student._id}\nSimulating session #{i} start at {session.start}, sim time {self.get_sim_time()} and end at {session.end}")
+                yield self.wait_for_class_start(session)
+                logger.debug(f"Student {self.student._id} Session starting: {self.get_sim_time()}\tscheduled start: {session.start}")
 
-            # Start working
-            delay = self.student.start_working(session.length())
-            logger.debug(f"Starting work in {delay/60} minutes")
-            yield self.env.timeout(delay)
+                # Start working
+                delay = self.student.start_working(session.length())
+                logger.debug(f"Starting work in {delay/60} minutes")
+                yield self.env.timeout(delay)
 
-            # Login to tutor
-            tx = self.tutor.login(session, self.get_sim_time())
-            self.db.tutor_events.insert_one(tx.__dict__)
-            
-            # work on tutor until end of session or end of tutor
-            studying = self.env.process(self.study(session))
-            end_of_class = self.env.timeout(session.length())
-            yield studying | end_of_class
+                # Login to tutor
+                tx = self.tutor.login(session, self.get_sim_time())
+                self.log.log_transaction(tx)
+                # self.db.tutor_events.insert_one(tx.__dict__)
+                
+                # work on tutor until end of session or end of tutor
+                studying = self.env.process(self.study(session))
+                end_of_class = self.env.timeout(session.length())
+                yield studying | end_of_class
 
-            # Interrupt studying if necessary
-            if not studying.triggered:
-                studying.interrupt("End of Class")
-            else:
-                # Wait until end of class if studening was finished first
-                yield end_of_class
+                # Interrupt studying if necessary
+                if not studying.triggered:
+                    studying.interrupt("End of Class")
+                else:
+                    # Wait until end of class if studening was finished first
+                    yield end_of_class
 
-            # Logout of Tutor
-            tx = self.tutor.logout(session, self.get_sim_time())
-            self.db.tutor_events.insert_one(tx.__dict__)
+                # Logout of Tutor
+                tx = self.tutor.logout(session, self.get_sim_time())
+                self.log.log_transaction(tx)
+                # self.db.tutor_events.insert_one(tx.__dict__)
 
-            # Log session & update simulation state
-            self.db.class_sessions.insert_one(session.__dict__)
-            logger.debug(f"Logged class session: {session}")
-            self.state['session_num'] += 1
-            logger.debug(f"Class session ending at current time {self.get_sim_time()}")
+                # Log session & update simulation state
+                self.log.log_session(session)
+                # self.db.class_sessions.insert_one(session.__dict__)
+                # logger.debug(f"Logged class session: {session}")
+                self.state['session_num'] += 1
+                logger.debug(f"Class session ending at current time {self.get_sim_time()}")
+
+        except simpy.Interrupt as i:
+            logger.warning("Process was interrupted")
+        # Write all log to db at end of simulation
+        self.log.write_to_db()
         
         
 
