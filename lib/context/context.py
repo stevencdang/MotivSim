@@ -26,7 +26,6 @@ class SimpleTutorContext(Context):
         self.learner_off_task = learner_state['off_task']
         self.learner_kc_knowledge = learner_state['skills'][self.kc._id]
 
-        # self.session = session
         self.time = time
 
     def get_actions(self):
@@ -38,4 +37,17 @@ class SimpleTutorContext(Context):
             actions.append(OffTask)
         return actions
 
+
+class ClassSessionContext(SimpleTutorContext):
+
+
+    def __init__(self, tutor_state, learner_state, session, time):
+        super().__init__(tutor_state, learner_state, time)
+        self.session = session
+
+
+    def get_actions(self):
+        actions = super().get_actions()
+        actions.append(StopWork)
+        return actions
 

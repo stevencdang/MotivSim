@@ -52,3 +52,9 @@ class OffTask(Action):
         self.name = "Off Task"
 
 
+class StopWork(OffTask):
+
+    def __init__(self, time):
+        super().__init__(time)
+        self.name = "Stop Work"
+

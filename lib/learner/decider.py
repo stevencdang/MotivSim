@@ -83,13 +83,16 @@ class EVDecider(Decider):
         return choice, {"choice_evs": choice_evs, "pev": pev}
 
     def calc_ev(self, choices, state, cntxt):
-        choice_evs = {choice.__name__:
-                      {'expectancy': self.calc_expectancy(choice, state, cntxt),
-                       'value': self.calc_value(choice, state, cntxt),
-                       'ev': self.calc_expectancy(choice, state, cntxt)* self.calc_value(choice, state, cntxt),
-                      }
-              for choice in choices
-        }
+        choice_evs = {}
+        for choice in choices:
+            expt = self.calc_expectancy(choice, state, cntxt)
+            val = self.calc_value(choice, state, cntxt)
+            choice_evs[choice.__name__] = {'expectancy': expt,
+                                           'value': val,
+                                           'ev':  expt*val
+                                          }
+            # logger.info(f"Exptancy: {expt}\tVal: {val}\t EV: {expt*val}")
+            # logger.info(f"Choice EVS: {choice_evs}")
         return choice_evs
 
 
@@ -116,6 +119,8 @@ class EVDecider(Decider):
                 return 1
         elif action == OffTask:
             return 1
+        elif action == StopWork:
+            return 1
         else:
             return 0
 
@@ -138,6 +143,12 @@ class EVDecider(Decider):
                 return self.values['hint request'] * hint_val
         elif action == OffTask:
             return self.values['off task']
+        elif action == StopWork:
+            tt_end = (cntxt.session.end - cntxt.time).total_seconds()
+            mean_stop = 3 * 60
+            base_val = 1 #0.5*self.values['attempt']
+            # logger.info(f"Stop Work Value: { (base_val*mean_stop)/tt_end }\tTime to end: {cntxt.session.end - cntxt.time}")
+            return (base_val*mean_stop)/tt_end
         else:
             return 0
 
@@ -157,23 +168,52 @@ class DiligentDecider(Decider):
         choice_evs = self.ev_decider.calc_ev(choices, state, cntxt)
         # Adjust ev for diligent actions
         for choice in choices:
-            if self.is_diligent(choice):
-                if self.diligence < 0:
-                    choice_evs[choice.__name__]['ev'] = 1/self.diligence * choice_evs[choice.__name__]['ev']
-                else:
-                    choice_evs[choice.__name__]['ev'] = self.diligence * choice_evs[choice.__name__]['ev']
+            if self.is_diligent(choice, state, cntxt):
+                dil = self.diligence
+                w = dil + 1 if dil > 0 else dil - 1
+                # Diligence is a constant adjustment on desired over undesired actions. 
+                # This is should be reconsidered based on theory
+                choice_evs[choice.__name__]['ev'] = 2*w + choice_evs[choice.__name__]['ev']
+                # if self.diligence < 0:
+                    # choice_evs[choice.__name__]['ev'] = 1/(-self.diligence) * choice_evs[choice.__name__]['ev']
+                # else:
+                    # choice_evs[choice.__name__]['ev'] = self.diligence * choice_evs[choice.__name__]['ev']
 
+        pev = []
 
         # Calc choice distribution
-        total_ev = np.sum([val['ev'] for val in choice_evs.values()])
-        pev = [choice_evs[choice.__name__]['ev']/total_ev for choice in choices]
+        if np.sum([val['ev'] > 0 for val in choice_evs.values()]) > 0:
+            # There is at least 1 postive EV, choose most valued action
+            total_ev = np.sum([val['ev'] for val in choice_evs.values() if val['ev'] > 0])
+            for choice in choices:
+                if choice_evs[choice.__name__]['ev'] > 0:
+                    pev.append(choice_evs[choice.__name__]['ev']/total_ev)
+                else:
+                    pev.append(0)
+
+        else:
+            # reverse order of negative costs
+            vals = [val['ev'] for val in choice_evs.values()]
+            total_ev = abs(np.sum(vals))
+            ev_min  = np.min(vals)
+            ev_max = np.max(vals)
+            offset = ev_min + ev_max
+            # for choice in choices:
+                # pev.append(choice_evs[choice.__name__]['ev']/total_ev)
+            pev = [(choice_evs[choice.__name__]['ev'] - offset)/total_ev for choice in choices]
+
+
+
+        # pev = [choice_evs[choice.__name__]['ev']/total_ev if choice_evs[ for choice in choices]
         
         choice = random.choices(choices, weights=pev, k=1)[0]
 
+        if choice == StopWork:
+            logger.debug(f"Choosing to stop. Choice_EVs: {choice_evs}\tP(EV): {str(pev)}")
         return choice, {"choice_evs": choice_evs, "pev": pev}
 
 
-    def is_diligent(self, action):
+    def is_diligent(self, action, state, cntxt):
         if action == Attempt:
             return True
         elif action == Guess:
@@ -182,6 +222,8 @@ class DiligentDecider(Decider):
             return True
         elif action == OffTask:
             return False
+        elif action == StopWork:
+            return ((cntxt.session.end - cntxt.time).total_seconds() < 300) # 5 minutes
 
     def start_working(self, max_t):
         mean_start = 5*60 # 5 minutes

@@ -16,7 +16,7 @@ import simpy
 from log_db import mongo
 from log_db.learner_log import *
 from tutor.domain import Domain
-from context.context import SimpleTutorContext
+from context.context import *
 from tutor.simple_curriculum import SimpleCurriculum
 from tutor.tutor import Tutor
 from tutor.session import ClassSession
@@ -204,11 +204,11 @@ class SingleStudentSim(TimedSimulation):
         delay = sim_time - self.env.now
         return self.env.timeout(delay)
 
-    def study(self):
+    def study(self, session):
         try:
             while self.tutor.has_more():
                 t = self.get_sim_time()
-                cntxt = SimpleTutorContext(self.tutor.state, self.student.get_state(), t)
+                cntxt = ClassSessionContext(self.tutor.state, self.student.get_state(), session, t)
                 choice, decision = self.student.choose_action(cntxt)
                 
                 logger.debug("Logging decision: %s" % str(decision.to_dict()))
@@ -220,6 +220,12 @@ class SingleStudentSim(TimedSimulation):
                 logged_action = LoggedAction(self.student, action, cntxt.time)
                 logger.debug("Logged action: %s" % str(logged_action.to_dict()))
                 self.db.actions.insert_one(logged_action.to_dict())
+
+                if isinstance(action, StopWork):
+                    logger.info(f"Student with diligence {self.student.decider.diligence} \
+                                is stopping work {session.end - t} till end and {t - session.start} from start")
+                    # logger.info(f"Student, {self.student._id} wiht diligence {self.student.decider.diligence} is stopping work at time: {t}\nstart: {session.start}\tEnd of class: {session.end}")
+                    raise simpy.Interrupt("Student chose to stop working")
 
                 # Simulate Learning interaction with tutor
                 feedback, tx = self.tutor.process_input(action, t)
@@ -247,7 +253,7 @@ class SingleStudentSim(TimedSimulation):
             session = self.get_next_class_session()
             logger.info(f"Student {self.student._id}\nSimulating session #{i} start at {session.start}, sim time {self.get_sim_time()} and end at {session.end}")
             yield self.wait_for_class_start(session)
-            logger.debug(f"Session starting: {self.get_sim_time()}")
+            logger.debug(f"Student {self.student._id} Session starting: {self.get_sim_time()}\tscheduled start: {session.start}")
 
             # Start working
             delay = self.student.start_working(session.length())
@@ -259,7 +265,7 @@ class SingleStudentSim(TimedSimulation):
             self.db.tutor_events.insert_one(tx.__dict__)
             
             # work on tutor until end of session or end of tutor
-            studying = self.env.process(self.study())
+            studying = self.env.process(self.study(session))
             end_of_class = self.env.timeout(session.length())
             yield studying | end_of_class
 

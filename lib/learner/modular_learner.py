@@ -95,6 +95,9 @@ class ModularLearner(Learner):
         elif action == OffTask:
             time = random.uniform(self.attributes['min_off_task'], self.attributes['max_off_task'])
             act = OffTask(time)
+        elif action == StopWork:
+            time = 0
+            act = StopWork(time)
         else:
             act = None
 
