@@ -65,32 +65,30 @@ class ModularLearner(Learner):
         kc = cntxt.kc
         logger.debug("Action is %s" % str(action))
         if action == Attempt:
-            time = random.gauss(kc.m_time, kc.sd_time)
-            # Lazy fiz to truncate gaussian
-            if time < 0.25:
-                logger.debug("Action performed was less than 0.25 secs, channging to 0.25 sec")
-                time = 0.25 
+            time = 0
+            while time < 0.25:
+                time = random.gauss(kc.m_time, kc.sd_time)
 
             is_correct = self.cog.produce_answer(action, cntxt)
             self.state['attempted'] = True
-            # Make is_correct default to True to change later
-            act = Attempt(time, is_correct)
+
+            if is_correct is not None:
+                # Make is_correct default to True to change later
+                act = Attempt(time, is_correct)
+            else:
+                act = FailedAttempt(time)
             
         elif action == HintRequest:
-            time = random.gauss(self.attributes['mean_hint_time'], self.attributes['sd_hint_time'])
-            # Lazy fiz to truncate gaussian
-            if time < 0.25:
-                logger.debug("Action performed was less than 0.25 secs, channging to 0.25 sec")
-                time = 0.25 
+            time = 0
+            while time < 0.25:
+                time = random.gauss(self.attributes['mean_hint_time'], self.attributes['sd_hint_time'])
 
             act = HintRequest(time)
         elif action == Guess:
             is_correct = self.cog.produce_answer(action, cntxt)
-            time = random.gauss(self.attributes['mean_guess_time'], self.attributes['sd_guess_time'])
-            # Lazy fiz to truncate gaussian
-            if time < 0.25:
-                logger.debug("Action performed was less than 0.25 secs, channging to 0.25 sec")
-                time = 0.25 
+            time = 0
+            while time < 0.25:
+                time = random.gauss(self.attributes['mean_guess_time'], self.attributes['sd_guess_time'])
             act = Guess(time, is_correct)
         elif action == OffTask:
             time = random.uniform(self.attributes['min_off_task'], self.attributes['max_off_task'])

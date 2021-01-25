@@ -141,17 +141,25 @@ class PCorSkillCognition(Cognition):
     def produce_answer(self, action, cntxt):
         kc = cntxt.kc
         logger.debug("Action is %s" % str(action))
+        skllvl = self.skills[kc._id]
 
         if action == Attempt:
-            if self.is_skill_mastered(kc):
-                weights = [(1 - kc.ps), kc.ps]
-            else:
+            # if self.is_skill_mastered(kc):
+                # weights = [(1 - kc.ps), kc.ps]
+            # else:
                 # Adjust prob(correct) depending on number of hints avail
-                total_hints = cntxt.hints_used + cntxt.hints_avail
-                hint_exp = cntxt.hints_used / total_hints
-                pg = kc.pg + (1 - kc.pg) * hint_exp
-                weights = [pg, (1 - pg)]
-            is_correct = random.choices([True, False], weights=weights, k=1)[0]
+            total_hints = cntxt.hints_used + cntxt.hints_avail
+            hint_exp = cntxt.hints_used / total_hints
+            pcor = skllvl + (1 - skllvl) * hint_exp
+            weights = [pcor, (1 - pcor)]
+            
+            # Same chance of producing an answer as producing a correct answer
+            has_answer = random.choices([True, False], weights=weights, k=1)[0]
+            if has_answer:
+                is_correct = random.choices([True, False], weights=weights, k=1)[0]
+            else:
+                is_correct = None
+                
             
         elif action == Guess:
             weights = [0.01, 0.99]

@@ -53,8 +53,8 @@ class Tutor:
             return self.process_attempt(inpt, time)
         elif isinstance(inpt, action.HintRequest):
             return self.process_hint(inpt, time)
-        elif isinstance(inpt, action.OffTask):
-            logger.debug("Processing student Offtask")
+        elif isinstance(inpt, action.OffTask) or isinstance(inpt, action.FailedAttempt):
+            logger.debug(f"Processing student action: {inpt.type}")
             return None, None
         else:
             raise IOError("Unable to process input of type: %s" % str(type(inpt)))

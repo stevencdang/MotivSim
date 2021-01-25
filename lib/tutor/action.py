@@ -29,6 +29,12 @@ class Attempt(Action):
         self.name = "Attempt"
         self.is_correct = is_correct
 
+class FailedAttempt(Action):
+
+    def __init__(self, time):
+        super().__init__(time)
+        self.name = "Failed Attempt"
+
 
 class HintRequest(Action):
 
