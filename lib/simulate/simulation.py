@@ -251,7 +251,7 @@ class SingleStudentSim(TimedSimulation):
             for i in range(self.num_sessions):
                 # Start a new session and wait to start work
                 session = self.get_next_class_session()
-                logger.info(f"Student {self.student._id}\nSimulating session #{i} start at {session.start}, sim time {self.get_sim_time()} and end at {session.end}")
+                logger.debug(f"Student {self.student._id}\nSimulating session #{i} start at {session.start}, sim time {self.get_sim_time()} and end at {session.end}")
                 yield self.wait_for_class_start(session)
                 logger.debug(f"Student {self.student._id} Session starting: {self.get_sim_time()}\tscheduled start: {session.start}")
 

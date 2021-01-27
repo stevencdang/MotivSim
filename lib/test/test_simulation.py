@@ -181,11 +181,11 @@ def test_biaslearner():
     db, db_util, db_params = init_db()
     domain, curric = gen_cont_curric(db, db_params)
 
-    num_students = 1
+    num_students = 200
     for i in range(num_students):
         ability = 0.5
         cog = BiasSkillCognition(domain, ability)
-        ev_decider = RandValDecider()
+        ev_decider = EVDecider()
         decider = DiligentDecider(ev_decider)
         stu = ModularLearner(domain, cog, decider)
         logger.debug("inserting new student to db: %s" % str(stu.to_dict()))
@@ -207,7 +207,7 @@ def test_timed_simulation():
 
     env = simpy.Environment()
 
-    num_students = 5
+    num_students = 200
     mastery_thres = 0.9
     m_ses_len = 40
     sd_ses_len = 8
@@ -227,7 +227,7 @@ def test_timed_simulation():
         tutor = SimpleTutor(curric, stu._id, mastery_thres)
 
         # Initialize simulation processes
-        num_sessions = 3
+        num_sessions = 30
         sim = SingleStudentSim(env, sim_start, stu, tutor, 
                                num_sessions, m_ses_len, sd_ses_len, max_ses_len)
         env.process(sim.run())

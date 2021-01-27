@@ -1,6 +1,7 @@
 # Base class for a learner cognition module
 # This module is responsible for simulating student responses to questions
 
+import sys
 import uuid
 import logging
 import random
@@ -152,6 +153,9 @@ class PCorSkillCognition(Cognition):
             hint_exp = cntxt.hints_used / total_hints
             pcor = skllvl + (1 - skllvl) * hint_exp
             weights = [pcor, (1 - pcor)]
+
+            if pcor < 0.1:
+                logger.warning(f"Prob of correct = {pcor}")
             
             # Same chance of producing an answer as producing a correct answer
             has_answer = random.choices([True, False], weights=weights, k=1)[0]

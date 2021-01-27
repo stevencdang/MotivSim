@@ -6,7 +6,7 @@
 
 import logging
 
-from datetime import datetime as dt
+import datetime as dt
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -28,9 +28,9 @@ class BatchCalculator:
 
 
     def time_calc(self, calc, args):
-        start = dt.now()
+        start = dt.datetime.now()
         result = calc(*args)
-        end = dt.now()
+        end = dt.datetime.now()
         runtime = (end - start).total_seconds()
         return result, runtime
 

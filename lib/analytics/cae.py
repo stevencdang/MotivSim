@@ -8,7 +8,6 @@ import logging
 
 from typing import Final
 
-from datetime import datetime as dt
 import pandas as pd
 
 # from CanonicalAutocorrelationAnalysis.model.caa import *

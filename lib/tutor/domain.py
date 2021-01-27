@@ -114,8 +114,11 @@ class Domain:
                 pg = 0.01
             elif pg >= 1:
                 pg = 0.99
-            m_time = random.gauss(self.kc_hyperparams['m_mt'],
-                                  self.kc_hyperparams['sd_mt'])
+
+            m_time = -1
+            while m_time < 4:
+                m_time = random.gauss(self.kc_hyperparams['m_mt'],
+                                      self.kc_hyperparams['sd_mt'])
             sd_time = m_time/4
             kc = KC(self._id, pl0, pt, ps, pg, m_time, sd_time)
             logger.debug("KC: pl0: %f\tpt: %f\tpg: %f\tps: %f\tmtime: %f\t sdtime: %f" % (kc.pl0, kc.pt, kc.ps, kc.pg, kc.m_time, kc.sd_time))
@@ -185,8 +188,10 @@ class ContKCDomain(Domain):
                 pg = random.gauss(self.kc_hyperparams['m_g'], 
                                   self.kc_hyperparams['sd_g'])
             
-            m_time = random.gauss(self.kc_hyperparams['m_mt'],
-                                  self.kc_hyperparams['sd_mt'])
+            m_time = -1
+            while m_time < 0:
+                m_time = random.gauss(self.kc_hyperparams['m_mt'],
+                                      self.kc_hyperparams['sd_mt'])
             sd_time = m_time/4
             kc = ContKC(self._id, pl0, pl0_sd, pt, ps, pg, m_time, sd_time)
             logger.debug("KC: pl0: %f\tpl0_sd: %f\tpt: %f\tpg: %f\tps: %f\tmtime: %f\t sdtime: %f" % (kc.pl0, kc.pl0_sd, kc.pt, kc.ps, kc.pg, kc.m_time, kc.sd_time))

@@ -66,8 +66,13 @@ class ModularLearner(Learner):
         logger.debug("Action is %s" % str(action))
         if action == Attempt:
             time = 0
+            loops = 0
             while time < 0.25:
                 time = random.gauss(kc.m_time, kc.sd_time)
+                loops += 1
+                if loops > 50:
+                    logger.warning(f"Setting time to 0.25\tDuration of action mu: {kc.m_time}\tsd: {kc.sd_time}")
+                    time = 0.25
 
             is_correct = self.cog.produce_answer(action, cntxt)
             self.state['attempted'] = True

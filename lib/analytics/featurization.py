@@ -5,7 +5,7 @@ import logging
 
 from typing import Final
 
-from datetime import datetime as dt
+import datetime as dt
 import pandas as pd
 import copy
 

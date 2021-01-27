@@ -233,6 +233,8 @@ class DiligentDecider(Decider):
         w = self.diligence / 2
 
         mu = mean_start - 2*(w * 60)
+        if mu < 0.1:
+            mu = 0.1
         sd = 180 - 6*(w * 60)
         if sd <= 0.1:
             sd = 0.1
