@@ -115,7 +115,7 @@ BeautifulSoup==3.2.1
 functools32==3.2.3.post2
 gnureadline==6.3.3
 ipython-genutils==0.1.0
-Jinja2==2.8
+Jinja2==2.10.1
 lda==1.0.3
 lxml==3.5.0
 MarkupSafe==0.23
