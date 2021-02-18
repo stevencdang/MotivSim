@@ -39,15 +39,19 @@ class DBLearnerMapper:
 
         stu = ModularLearner(domain, cog_mod, decider_mod)
         stu._id = _id
-        stu.skill = obj['skills']
-        stu.state.skills = obj['skills']
-        stu.min_off_task =  obj['min_off_task'] 
-        stu.max_off_task = obj['max_off_task'] 
-        stu.mean_guess_time = obj['mean_guess_time']
-        stu.sd_guess_time = obj['sd_guess_time']
 
-        stu.state.total_attempts = obj['total_attempts']
-        stu.state.total_success = obj['total_success']
+        # State Variables
+        fields = obj['state_fields']
+        stu.state = {}
+        for field in fields:
+            stu.state[field] = obj[field]
+
+        # Attribute Varibales
+        fields = obj['attribute_fields']
+        stu.attributes = {}
+        for field in fields:
+            stu.attributes[field] = obj[field]
+
         return stu 
 
 
@@ -75,9 +79,11 @@ class DBLearnerMapper:
         # Determine type of cog module to use
         modtype = getattr(sys.modules[__name__], d['type'])
         domain = DBDomainMapper(self.db).get_from_db(d['domain_id'])
+        args = {'domain': domain}
+        args.update(modtype.get_init_args(d))
 
         # Initialize from dict
-        out = modtype.from_dict(d)
+        out = modtype(**args)
 
         logger.debug(f"Recovered Cog Module: {str(out)}")
 

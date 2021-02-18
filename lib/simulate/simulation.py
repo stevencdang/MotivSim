@@ -122,7 +122,7 @@ class TimedSimulation:
 
 class SingleStudentSim(TimedSimulation):
 
-    def __init__(self, env, start,
+    def __init__(self, db, env, start,
                  student, tutor,
                  num_sessions, m_ses_len, sd_ses_len,
                  max_ses_len
@@ -140,7 +140,7 @@ class SingleStudentSim(TimedSimulation):
 
         self.class_start = None
 
-        self.log = SimLogger(self.student, self.tutor)
+        self.log = SimLogger(db, self.student, self.tutor)
 
         self.set_class_start()
 
@@ -220,7 +220,7 @@ class SingleStudentSim(TimedSimulation):
                 # self.db.actions.insert_one(logged_action.to_dict())
 
                 if isinstance(action, StopWork):
-                    logger.info(f"Student with diligence {self.student.decider.diligence} \
+                    logger.debug(f"Student with diligence {self.student.decider.diligence} \
                                 is stopping work {session.end - t} till end and {t - session.start} from start")
                     # logger.info(f"Student, {self.student._id} wiht diligence {self.student.decider.diligence} is stopping work at time: {t}\nstart: {session.start}\tEnd of class: {session.end}")
                     raise simpy.Interrupt("Student chose to stop working")
@@ -236,18 +236,13 @@ class SingleStudentSim(TimedSimulation):
                 yield self.env.timeout(action.time)
         except simpy.Interrupt as i:
             logger.debug(f"***** Studying was interrupted by: {i} *****")
-            return
-
-        logger.debug("***** STudent completed studying all tutor content *****")
 
 
-
-        
 
 
     def run(self):
         try:
-            logger.info(f"Starting Sim for student {self.student._id}")
+            logger.debug(f"Starting Sim for student {self.student._id}")
             for i in range(self.num_sessions):
                 # Start a new session and wait to start work
                 session = self.get_next_class_session()
@@ -267,7 +262,7 @@ class SingleStudentSim(TimedSimulation):
                 
                 # work on tutor until end of session or end of tutor
                 studying = self.env.process(self.study(session))
-                end_of_class = self.env.timeout(session.length())
+                end_of_class = self.env.timeout(session.length() - delay)
                 yield studying | end_of_class
 
                 # Interrupt studying if necessary

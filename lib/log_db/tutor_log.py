@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class Transaction:
 
+    stu_id : str
     time: dt.datetime
 
     def __post_init__(self):
@@ -60,7 +61,6 @@ class TutorInput(Transaction):
     section_id : str
     prob_id : str
     step_id : str
-    stu_id : str
     duration : float
     outcome : str
     kcs : List[KC]

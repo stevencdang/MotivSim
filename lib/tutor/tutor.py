@@ -38,13 +38,13 @@ class Tutor:
 
     def login(self, session, time):
         logger.debug(f"Logging start of new session: {time}")
-        tx = SessionStart(session_id=session._id, time=time)
-        logger.debug(f"session start: {str(tx)}")
+        tx = SessionStart(stu_id=self.stu_id, session_id=session._id, time=time)
+        logger.debug(f"session start: {str(tx.to_dict())}")
         return tx
 
     def logout(self, session, time):
         logger.debug("Logging end of session")
-        tx = SessionEnd(session_id=session._id, time=time)
+        tx = SessionEnd(stu_id=self.stu_id, session_id=session._id, time=time)
         logger.debug(f"session end: {tx.__dict__}")
         return tx
 
@@ -87,6 +87,11 @@ class SimpleTutor(Tutor):
         except Exception as e:
             logger.warning(f"Error while initializing tutor: {str(e)}")
        
+    def login(self, session, time):
+        tx = super().login(session, time)
+        self.state.last_tx_time = time
+        return tx
+
     def process_attempt(self, inpt, time):
         logger.debug("Processing student attempt and updating kc specific pL0")
         kc = self.state.step.kcs[0]
@@ -164,7 +169,7 @@ class SimpleTutor(Tutor):
                 return
             except Exception as e:
                 logger.debug(e)
-                logger.info("Completed last unit. No more units in curriculum")
+                logger.debug("Completed last unit. No more units in curriculum")
                 self.state.is_done = True
 
 
@@ -302,6 +307,7 @@ class SimpleTutor(Tutor):
             raise IOError("Unable to generate log entry for input of type: %s" % str(type(inpt)))
 
         kc = self.state.step.kcs[0]
+        duration = (time - self.state.last_tx_time).total_seconds()
         tx = TutorInput(time=time,
                         curric_id=self.curric._id,
                         unit_id=self.state.unit._id,
@@ -309,7 +315,7 @@ class SimpleTutor(Tutor):
                         prob_id=self.state.problem._id,
                         step_id=self.state.step._id,
                         stu_id=self.stu_id,
-                        duration=inpt.time,
+                        duration=duration,
                         outcome=outcome,
                         kcs=self.state.step.kcs,
                         plt=plt,
@@ -318,6 +324,9 @@ class SimpleTutor(Tutor):
                         hints_avail=self.state.hints_avail,
                         attempt=self.state.attempt
                  )
+
+        # Set last tx time to current time
+        self.state.last_tx_time = time
             
         # tx._id = self.db.tutor_events.insert_one(tx.to_dict()).inserted_id
         logger.debug("User Transaction: %s" % tx)
@@ -342,6 +351,7 @@ class SimpleTutorState:
         self.first_attempt = None
         self.attempt = None
         self.is_done = False
+        self.last_tx_time = None
 
     def has_started(self):
         if self.prob == None:

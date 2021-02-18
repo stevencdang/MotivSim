@@ -18,14 +18,15 @@ logger = logging.getLogger(__name__)
 
 class SimLogger:
 
-    def __init__(self, stu, tutor):
+    def __init__(self, db, stu, tutor):
         # Initialize connection to database
-        db_params = mongo.get_db_params()
-        self.db = mongo.connect(db_params['url'], 
-                              db_params['port'], 
-                              db_params['name'], 
-                              db_params['user'], 
-                              db_params['pswd'])
+        # db_params = mongo.get_db_params()
+        # self.db = mongo.connect(db_params['url'], 
+                              # db_params['port'], 
+                              # db_params['name'], 
+                              # db_params['user'], 
+                              # db_params['pswd'])
+        self.db = db
         self.student = stu
         self.tutor = tutor
 
@@ -48,7 +49,7 @@ class SimLogger:
 
         self.decisions.append(d)
         if len(self.decisions) > self.max_queue:
-            logger.info("***** Writing Decision queue to db *****")
+            logger.debug("***** Writing Decision queue to db *****")
             self.db.decisions.insert_many([dec.to_dict() for dec in self.decisions])
             # Reset queue
             self.decisions = []
@@ -68,7 +69,7 @@ class SimLogger:
         self.actions.append(logged_action)
 
         if len(self.actions) > self.max_queue:
-            logger.info("***** Writing Action queue to db *****")
+            logger.debug("***** Writing Action queue to db *****")
             self.db.actions.insert_many([act.to_dict() for act in self.actions])
             # Reset queue
             self.actions = []
@@ -76,6 +77,8 @@ class SimLogger:
 
     def log_transaction(self, d):
         logger.debug("Logging transaction: {d.to_dict()}")
+        # if d.type == "SessionStart":
+            # logger.warning(f"Logging Session Start. current tx count: {len(self.transactions)}")
 
         # Add action_ids of most recent actions to latest transaction before logging
         action_ids = [act._id for act in self.state['last_actions']]
@@ -83,8 +86,10 @@ class SimLogger:
         self.state['last_actions'] = []
 
         self.transactions.append(d)
+        # if d.type == "SessionStart":
+            # logger.warning(f"Appended session start. current tx count: {len(self.transactions)}")
         if len(self.transactions) > self.max_queue:
-            logger.info("***** Writing Transaction queue to db *****")
+            logger.debug("***** Writing Transaction queue to db *****")
             self.db.tutor_events.insert_many([tx.to_dict() for tx in self.transactions])
             # Reset queue
             self.transactions = []
@@ -95,30 +100,34 @@ class SimLogger:
         # self.db.class_sessions.insert_one(d.__dict__)
         self.sessions.append(d)
         if len(self.sessions) > self.max_queue:
-            logger.info("***** Writing Sessions queue to db *****")
+            logger.debug("***** Writing Sessions queue to db *****")
             self.db.sessions.insert_many([ses.__dict__ for ses in self.sessions])
             # Reset queue
             self.sessions = []
 
 
     def write_to_db(self):
-        logger.info("Dumping all queues to db")
+        logger.debug("Dumping all queues to db")
+       
+        if len(self.sessions) > 0:
+            self.db.sessions.insert_many([ses.__dict__ for ses in self.sessions])
+            # Reset queue
+            self.sessions = []
+
+        if len(self.transactions) > 0:
+            self.db.tutor_events.insert_many([tx.to_dict() for tx in self.transactions])
+            # Reset queue
+            self.transactions = []
         
-        self.db.sessions.insert_many([ses.__dict__ for ses in self.sessions])
-        # Reset queue
-        self.sessions = []
-
-        self.db.tutor_events.insert_many([tx.to_dict() for tx in self.transactions])
-        # Reset queue
-        self.transactions = []
-
-        self.db.actions.insert_many([act.to_dict() for act in self.actions])
-        # Reset queue
-        self.actions = []
-
-        self.db.decisions.insert_many([dec.to_dict() for dec in self.decisions])
-        # Reset queue
-        self.decisions = []
+        if len(self.actions) > 0:
+            self.db.actions.insert_many([act.to_dict() for act in self.actions])
+            # Reset queue
+            self.actions = []
+        
+        if len(self.decisions) > 0:
+            self.db.decisions.insert_many([dec.to_dict() for dec in self.decisions])
+            # Reset queue
+            self.decisions = []
 
 
 

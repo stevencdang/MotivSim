@@ -47,6 +47,10 @@ class Cognition:
         self.skills = d['skills']
 
     @staticmethod
+    def get_init_args(d):
+        return {}
+
+    @staticmethod
     def from_dict(d):
         mod_type = getattr(sys.modules[__name__], d['type'])
         out = mod_type()
@@ -118,7 +122,7 @@ class PCorSkillCognition(Cognition):
                 skl_sd = skill.pl0_sd
             else:
                 skl_sd = 0.1
-            while not ((pl0 >=0) and (pl0 <=1)):
+            while not ((pl0 >0) and (pl0 <=1)):
                 pl0 = random.normalvariate(skill.pl0, skl_sd)
             return pl0
 
@@ -154,8 +158,6 @@ class PCorSkillCognition(Cognition):
             pcor = skllvl + (1 - skllvl) * hint_exp
             weights = [pcor, (1 - pcor)]
 
-            if pcor < 0.1:
-                logger.warning(f"Prob of correct = {pcor}")
             
             # Same chance of producing an answer as producing a correct answer
             has_answer = random.choices([True, False], weights=weights, k=1)[0]
@@ -214,4 +216,10 @@ class BiasSkillCognition(PCorSkillCognition):
         for skill in domain.kcs:
             self.skills[skill._id] = get_init_skill_level(skill)
             logger.debug(f"Initial Skill level {skill._id}:\t{self.skills[skill._id]}")
+
+
+    @staticmethod
+    def get_init_args(d):
+        return {'ability': d['ability']}
+
 

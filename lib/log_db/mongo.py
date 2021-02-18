@@ -184,7 +184,7 @@ class Data_Utility:
 
         for col in clear_cols:
             # Remove all docs from collection
-            logger.info("Clearing all documents from collection %s" % col)
+            logger.debug("Clearing all documents from collection %s" % col)
             self.db[col].remove()
 
     def get_data(self, collection, fields=None, filters=None):

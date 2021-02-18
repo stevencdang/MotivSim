@@ -227,7 +227,7 @@ class DiligentDecider(Decider):
 
     def start_working(self, max_t):
         mean_start = 5*60 # 5 minutes
-        if max_t < mean_start:
+        if max_t*60 < mean_start:
             mean_start = max_t
         #Rescale diligence to standard deviations
         w = self.diligence / 2
@@ -290,12 +290,9 @@ class DomainSelfEffDecider(EVDecider):
         if self_eff is not None:
             se = self_eff
         else:
-            se = random.gauss(0.5, 0.15)
-
-        if se >= 1:
-            se = 0.99
-        elif se <= 0:
-            se = 0.01
+            se = -1
+            while (se <= 0) or (se >= 1):
+                se = random.gauss(0.5, 0.2)
 
         self.self_eff = se
 
@@ -308,7 +305,7 @@ class DomainSelfEffDecider(EVDecider):
         '''
         init_attempts = 1000
         init_success = self.self_eff * init_attempts
-        self_eff = (init_success + state.total_success) / (init_attempts + state.total_attempts)
+        self_eff = (init_success + state['total_success']) / (init_attempts + state['total_attempts'])
         return self_eff
 
     def calc_expectancy(self, action, state, cntxt):
@@ -322,6 +319,18 @@ class DomainSelfEffDecider(EVDecider):
             return exp
         else:
             return super().calc_expectancy(action, state, cntxt)
+
+class MathInterestDecider(DomainSelfEffDecider):
+
+    def __init__(self, self_eff=None, interest=None):
+        super().__init__(self_eff)
+        if interest is not None:
+            self.interest = interest
+        else:
+            self.interest = random.gauss(0, 1)
+            w = 2
+            self.values['attempt'] = self.values['attempt'] + w*self.interest
+
 
 class DomainTunerDecider(EVDecider):
 

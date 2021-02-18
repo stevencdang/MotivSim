@@ -96,3 +96,58 @@ class SimpleCAEPreprocessor(CAEPreprocessor):
         obj = super(SimpleCAEPreprocessor, cls).config_from_dict(d)
         # WARNING: this does not set the originl raw data. 
         return obj
+
+
+class Detector:
+
+    def __init__(self, db):
+        self.db = db
+
+
+    def get_kc_long_cutoff(self, tx, thres=0.9):
+            if 'kc' not in tx.columns:
+                tx['kc'] = tx.explode('kcs')['kcs'].apply(lambda x: x['_id'])
+            kc_stats = tx.groupby('kc')['duration'].apply(lambda x: np.quantile(x, thres)).to_dict()
+            return kc_stats
+
+    def get_kc_short_cutoff(self, tx, thres=0.05):
+            if 'kc' not in tx.columns:
+                tx['kc'] = tx.explode('kcs')['kcs'].apply(lambda x: x['_id'])
+            kc_stats = tx.groupby('kc')['duration'].apply(lambda x: np.quantile(x, thres)).to_dict()
+            return kc_stats
+
+
+    def is_off_task(self, tx, thres=30, kc_stats=None):
+        """
+        Detect off-task transactions as long transactions
+
+        """
+
+        if kc_stats is None:
+            d = tx.apply(lambda x: x['duration'] > thres, axis=1)
+            return d
+        else:
+
+            if 'kc' not in tx.columns:
+                tx['kc'] = tx.explode('kcs')['kcs'].apply(lambda x: x['_id'])
+
+            d = tx.apply(lambda x: x['duration'] > (kc_stats[x['kc']]), axis=1)
+            return d
+
+    def is_guess(self, tx, thres=2, kc_stats=None):
+        if kc_stats is None:
+            d = tx.apply(lambda x: x['duration'] <= thres, axis=1)
+            return d
+        else:
+            if 'kc' not in tx.columns:
+                tx['kc'] = tx.explode('kcs')['kcs'].apply(lambda x: x['_id'])
+            d = tx.apply(lambda x: (x['outcome'] == 'Incorrect') & (x['duration'] <= (kc_stats[x['kc']])), axis=1)
+
+            return d
+
+
+                           
+
+
+
+
