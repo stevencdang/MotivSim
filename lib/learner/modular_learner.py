@@ -35,8 +35,9 @@ class ModularLearner(Learner):
         self.decider = decider
 
         # Learner Specific attributes
-        self.attributes['min_off_task'] = 30 # 30 sec
-        self.attributes['max_off_task'] = 1800 # 30 minutes
+        self.attributes['min_off_task'] = 90 # 30 sec
+        self.attributes['max_off_task'] = 600 # 10 minutes
+        self.attributes['mean_off_task'] = 300
         self.attributes['mean_hint_time'] = 5 # seconds
         self.attributes['sd_hint_time'] = 1.5 # seconds
         self.attributes['mean_guess_time'] = 3 # seconds
@@ -71,7 +72,7 @@ class ModularLearner(Learner):
                 time = random.gauss(kc.m_time, kc.sd_time)
                 loops += 1
                 if loops > 50:
-                    logger.warning(f"Setting time to 0.25\tDuration of action mu: {kc.m_time}\tsd: {kc.sd_time}")
+                    logger.debug(f"Setting time to 0.25\tDuration of action mu: {kc.m_time}\tsd: {kc.sd_time}")
                     time = 0.25
 
             is_correct = self.cog.produce_answer(action, cntxt)
@@ -96,8 +97,7 @@ class ModularLearner(Learner):
                 time = random.gauss(self.attributes['mean_guess_time'], self.attributes['sd_guess_time'])
             act = Guess(time, is_correct)
         elif action == OffTask:
-            time = random.uniform(self.attributes['min_off_task'], self.attributes['max_off_task'])
-            act = OffTask(time)
+            act = self.go_offtask(cntxt)
         elif action == StopWork:
             time = 0
             act = StopWork(time)
@@ -128,6 +128,19 @@ class ModularLearner(Learner):
 
     def start_working(self, max_t):
         return self.decider.start_working(max_t)
+
+    def go_offtask(self, cntxt):
+        if hasattr(self.decider, 'get_offtask_time'):
+            time = self.decider.get_offtask_time(self.attributes)
+            return OffTask(time)
+        else:
+            time = -1
+            ot_sd = (self.attributes['max_off_task'] - self.attributes['mean_off_task'])/3
+            while (time < self.attributes['min_off_task']) or (time > self.attributes['max_off_task']):
+                time = random.gauss(self.attributes['mean_off_task'], ot_sd)
+            return OffTask(time)
+            
+
 
     def to_dict(self):
         # self.skills = copy.deepcopy(self.cog.skills)

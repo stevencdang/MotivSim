@@ -220,8 +220,8 @@ class SingleStudentSim(TimedSimulation):
                 # self.db.actions.insert_one(logged_action.to_dict())
 
                 if isinstance(action, StopWork):
-                    logger.debug(f"Student with diligence {self.student.decider.diligence} \
-                                is stopping work {session.end - t} till end and {t - session.start} from start")
+                    # logger.warning(f"Student with diligence {self.student.decider.diligence} \
+                                # is stopping work {session.end - t} till end and {t - session.start} from start")
                     # logger.info(f"Student, {self.student._id} wiht diligence {self.student.decider.diligence} is stopping work at time: {t}\nstart: {session.start}\tEnd of class: {session.end}")
                     raise simpy.Interrupt("Student chose to stop working")
 
@@ -264,18 +264,22 @@ class SingleStudentSim(TimedSimulation):
                 studying = self.env.process(self.study(session))
                 end_of_class = self.env.timeout(session.length() - delay)
                 yield studying | end_of_class
+                    
 
                 # Interrupt studying if necessary
                 if not studying.triggered:
+                    # Stop studying then logout
                     studying.interrupt("End of Class")
+                    # Stop work then Logout of Tutor
+                    tx = self.tutor.logout(session, self.get_sim_time())
+                    self.log.log_transaction(tx)
                 else:
+                    # Stop work then Logout of Tutor
+                    tx = self.tutor.logout(session, self.get_sim_time())
+                    self.log.log_transaction(tx)
                     # Wait until end of class if studening was finished first
                     yield end_of_class
 
-                # Logout of Tutor
-                tx = self.tutor.logout(session, self.get_sim_time())
-                self.log.log_transaction(tx)
-                # self.db.tutor_events.insert_one(tx.__dict__)
 
                 # Log session & update simulation state
                 self.log.log_session(session)

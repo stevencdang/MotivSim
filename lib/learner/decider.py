@@ -61,7 +61,7 @@ class EVDecider(Decider):
         atv = 10
         gsv = 0.25*atv
         hrv = 3
-        otv = 1
+        otv = 0.01
 
         self.values = {
             'attempt': atv,
@@ -144,24 +144,28 @@ class EVDecider(Decider):
         elif action == OffTask:
             return self.values['off task']
         elif action == StopWork:
-            tt_end = (cntxt.session.end - cntxt.time).total_seconds()
+            tt_end = abs((cntxt.session.end - cntxt.time).total_seconds())
             mean_stop = 3 * 60
             base_val = 1 #0.5*self.values['attempt']
             # logger.info(f"Stop Work Value: { (base_val*mean_stop)/tt_end }\tTime to end: {cntxt.session.end - cntxt.time}")
-            return (base_val*mean_stop)/tt_end
+            return ((base_val*mean_stop)/tt_end) ** 2
         else:
             return 0
 
 
 class DiligentDecider(Decider):
 
-    def __init__(self, ev_decider, dil=None):
+    def __init__(self, ev_decider, dil=None, ot_min_sd=60, ot_max_sd=300, ot_mean_sd=20):
         super().__init__()
         self.ev_decider = ev_decider
         if dil is None:
             self.diligence = random.gauss(0,2)
         else:
             self.diligence = dil
+
+        self.ot_min_sd = ot_min_sd
+        self.ot_max_sd = ot_max_sd
+        self.ot_mean_sd = ot_mean_sd
 
     def choose(self, choices, state, cntxt):
         # Get base choice distribution
@@ -171,9 +175,12 @@ class DiligentDecider(Decider):
             if self.is_diligent(choice, state, cntxt):
                 dil = self.diligence
                 w = dil + 1 if dil > 0 else dil - 1
+                w = 1 + (w / 10)
                 # Diligence is a constant adjustment on desired over undesired actions. 
+
                 # This is should be reconsidered based on theory
-                choice_evs[choice.__name__]['ev'] = 2*w + choice_evs[choice.__name__]['ev']
+                choice_evs[choice.__name__]['ev'] = w * choice_evs[choice.__name__]['ev']
+
                 # if self.diligence < 0:
                     # choice_evs[choice.__name__]['ev'] = 1/(-self.diligence) * choice_evs[choice.__name__]['ev']
                 # else:
@@ -193,6 +200,7 @@ class DiligentDecider(Decider):
 
         else:
             # reverse order of negative costs
+            logger.warning(f"Have negative costs. Diligence: {self.diligence}")
             vals = [val['ev'] for val in choice_evs.values()]
             total_ev = abs(np.sum(vals))
             ev_min  = np.min(vals)
@@ -210,6 +218,7 @@ class DiligentDecider(Decider):
 
         if choice == StopWork:
             logger.debug(f"Choosing to stop. Choice_EVs: {choice_evs}\tP(EV): {str(pev)}")
+            # logger.warning(f"Choosing to stop. Diligence: {self.diligence}\t") 
         return choice, {"choice_evs": choice_evs, "pev": pev}
 
 
@@ -235,7 +244,7 @@ class DiligentDecider(Decider):
         mu = mean_start - 2*(w * 60)
         if mu < 0.1:
             mu = 0.1
-        sd = 180 - 6*(w * 60)
+        sd = 180 - (w * 60)
         if sd <= 0.1:
             sd = 0.1
         delay = -1
@@ -244,6 +253,26 @@ class DiligentDecider(Decider):
 
         logger.debug(f"Diligence: {self.diligence}\t max_t: {max_t/60}\tmu: {mu/60}\tsd: {sd/60}\tdelay: {delay/60}")
         return delay
+
+    def get_offtask_time(self, attr):
+        if self.diligence < 0:
+            dil = self.diligence
+        else:
+            dil = self.diligence
+        ot_min = attr['min_off_task'] - dil * self.ot_min_sd if dil < 0 else attr['min_off_task'] - dil * self.ot_min_sd /4
+        if ot_min < 0:
+            ot_min = 10
+        ot_max = attr['max_off_task'] - dil * self.ot_max_sd if dil < 0 else attr['max_off_task'] - dil * self.ot_max_sd /4
+        ot_mean = attr['mean_off_task'] - dil * self.ot_mean_sd if dil < 0 else attr['mean_off_task'] - dil * self.ot_mean_sd /4
+        if ot_mean < 0:
+            ot_mean = ot_min 
+        ot_sd = (ot_max - ot_mean) / 3
+        time = -1
+        while (time < ot_min) or (time > ot_max):
+            time = random.gauss(ot_mean, ot_sd)
+        return time
+
+
 
     def to_dict(self):
         out = self.ev_decider.to_dict()
