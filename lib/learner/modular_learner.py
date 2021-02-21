@@ -105,7 +105,7 @@ class ModularLearner(Learner):
             act = None
 
 
-        if cntxt.attempt == 0:
+        if (cntxt.attempt == 0) and (isinstance(act, 'Attempt') or isinstance(act, 'Hint')):
             logger.debug("Skill to update: %s" % str(kc))
             self.practice_skill(kc)
 
