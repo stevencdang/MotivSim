@@ -273,21 +273,32 @@ class TransactionAnnotator:
 
     def __init__(self, db):
         self.db = db
+
+    def get_tx_actions(self, tx):
+        d = tx.explode('action_ids').rename(columns={'action_ids': 'action_id'})
+        actions = pd.DataFrame(self.db.actions.find({"_id": {"$in": d['action_id'].tolist()}}))
+        actions['action_type'] = actions.apply(lambda x: x['action']['type'], axis=1)
+        actions.rename(columns={"_id": "action_id"}, inplace=True)
+        d = pd.merge(d[['_id', 'action_id']], actions, on='action_id', how='outer')
+        return d
+
+    def get_tx_decisions(self, tx, get_actions=True):
+        actions = self.get_tx_actions(tx)
+        decisions = pd.DataFrame(self.db.decisions.find({"_id": {"$in": actions['decision_id'].tolist()}}))
+        decisions.rename(columns={"_id": "decision_id"}, inplace=True)
+        if get_actions:
+            return decisions, actions
+        else:
+            return decisions
+
  
     def label_offtask_tx(self, tx):
-        d = tx.explode('action_ids')
-        actions = pd.DataFrame(self.db.actions.find({"_id": {"$in": d['action_ids'].tolist()}}))
-        actions['action_type'] = actions.apply(lambda x: x['action']['type'], axis=1)
-        actions.rename(columns={"_id": "action_ids"}, inplace=True)
-        d = pd.merge(d, actions[['action_ids', 'action_type']], on='action_ids', how='inner')
+        d = self.get_tx_actions(tx)
         return d.groupby("_id")['action_type'].apply(lambda x: "OffTask" in x.tolist())
 
+
     def label_guess_tx(self, tx):
-        d = tx.explode('action_ids')
-        actions = pd.DataFrame(self.db.actions.find({"_id": {"$in": d['action_ids'].tolist()}}))
-        actions['action_type'] = actions.apply(lambda x: x['action']['type'], axis=1)
-        actions.rename(columns={"_id": "action_ids"}, inplace=True)
-        d = pd.merge(d, actions[['action_ids', 'action_type']], on='action_ids', how='inner')
+        d = self.get_tx_actions(tx)
         return d.groupby("_id")['action_type'].apply(lambda x: "Guess" in x.tolist())
 
 

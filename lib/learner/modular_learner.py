@@ -105,9 +105,10 @@ class ModularLearner(Learner):
             act = None
 
 
-        if (cntxt.attempt == 0) and (isinstance(act, 'Attempt') or isinstance(act, 'Hint')):
-            logger.debug("Skill to update: %s" % str(kc))
-            self.practice_skill(kc)
+        if isinstance(act, Attempt):
+            if act.is_correct:
+                logger.debug("Skill to update: %s" % str(kc))
+                self.practice_skill(kc)
 
         # logger.debug("Return action: %s" % str(act))
         # logged_action = LoggedAction(self, act, cntxt.time)

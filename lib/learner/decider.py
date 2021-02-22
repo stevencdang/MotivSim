@@ -273,7 +273,6 @@ class DiligentDecider(Decider):
         return time
 
 
-
     def to_dict(self):
         out = self.ev_decider.to_dict()
         out['diligence'] = self.diligence

@@ -280,17 +280,17 @@ class SimpleTutor(Tutor):
 
     def update_skill(self, kc, is_correct):
         plt = self.state.mastery[kc]
-        if plt < self.mastery_thres:
-            if is_correct:
-                plt1_cond = plt * (1 - kc.ps) / ((plt * (1 - kc.ps)) + (1 - plt) * kc.pg)
-            else:
-                plt1_cond = plt * kc.ps / ((plt * kc.ps) + (1 - plt) * (1 -kc.pg))
-            plt1 = plt1_cond + (1 - plt1_cond) * kc.pt
-            self.state.mastery[kc] = plt1
-            logger.debug("Outcome: %s\tPrior plt: %f\t updated plt: %f" % (str(is_correct), plt, plt1))
+        # if plt < self.mastery_thres:
+        if is_correct:
+            plt1_cond = plt * (1 - kc.ps) / ((plt * (1 - kc.ps)) + (1 - plt) * kc.pg)
         else:
-            # Hack for mastery learning to not allow student regression
-            logger.debug("Not updating skill because already past mastery threshold")
+            plt1_cond = plt * kc.ps / ((plt * kc.ps) + (1 - plt) * (1 -kc.pg))
+        plt1 = plt1_cond + (1 - plt1_cond) * kc.pt
+        self.state.mastery[kc] = plt1
+        logger.debug("Outcome: %s\tPrior plt: %f\t updated plt: %f" % (str(is_correct), plt, plt1))
+        # else:
+            # # Hack for mastery learning to not allow student regression
+            # logger.debug("Not updating skill because already past mastery threshold")
 
 
     def log_input(self, time, inpt, plt, plt1):
