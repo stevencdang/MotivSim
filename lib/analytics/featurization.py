@@ -146,7 +146,67 @@ class Detector:
             return d
 
 
-                           
+class TransactionAnnotator:
+
+    def __init__(self, db):
+        self.db = db
+
+    def get_tx_actions(self, tx):
+        d = tx.explode('action_ids').rename(columns={'action_ids': 'action_id'})
+        actions = pd.DataFrame(self.db.actions.find({"_id": {"$in": d['action_id'].tolist()}}))
+        actions['action_type'] = actions.apply(lambda x: x['action']['type'], axis=1)
+        actions.rename(columns={"_id": "action_id"}, inplace=True)
+        d = pd.merge(d[['_id', 'action_id']], actions, on='action_id', how='outer')
+        return d
+
+    def get_tx_decisions(self, tx, get_actions=True):
+        actions = self.get_tx_actions(tx)
+        decisions = pd.DataFrame(self.db.decisions.find({"_id": {"$in": actions['decision_id'].tolist()}}))
+        decisions.rename(columns={"_id": "decision_id"}, inplace=True)
+        if get_actions:
+            return decisions, actions
+        else:
+            return decisions
+
+    def merge_decisions(self, tx, actions, decisions):
+
+        # Need to remove "_id" from index because some transactions will be duplicated
+        tx.index = range(tx.shape[0])
+        actions.drop(columns=['time'], inplace=True)
+        d = pd.merge(tx, actions, how='outer', on='_id')
+        drop_cols = ['hints_avail', 'hints_used', 'attempt', 'student_id', 'kc']
+        decisions.drop(columns=drop_cols, inplace=True)
+        decisions.rename(columns={"time": "action_time"}, inplace=True)
+        d = pd.merge(d, decisions, how='outer', on='decision_id')
+        return d
+
+ 
+    def label_offtask_tx(self, tx):
+        d = self.get_tx_actions(tx)
+        return d.groupby("_id")['action_type'].apply(lambda x: "OffTask" in x.tolist())
+
+
+    def label_guess_tx(self, tx):
+        d = self.get_tx_actions(tx)
+        return d.groupby("_id")['action_type'].apply(lambda x: "Guess" in x.tolist())
+
+    def label_nondil_tx(self, tx):
+        detector = Detector(self.db) 
+	
+        kc_long_tx = detector.get_kc_long_cutoff(tx)
+        kc_short_tx = detector.get_kc_short_cutoff(tx)
+
+        # Add Ground truth labels (using global db var)
+
+        is_offtask = self.label_offtask_tx(tx).rename('is_offtask')
+        is_guess = self.label_guess_tx(tx).rename('is_guess')
+        result = pd.concat([is_offtask, is_guess], axis=1)
+
+        # Add detector labels
+        result['detect_offtask'] = detector.is_off_task(tx, kc_stats=kc_long_tx)
+        result['detect_guess'] = detector.is_guess(tx, kc_stats=kc_short_tx)
+        return result
+
 
 
 

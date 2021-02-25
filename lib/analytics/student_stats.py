@@ -32,6 +32,8 @@ from learner.decider import *
 from simulate.modlearner_simulation import ModLearnerSimulation
 from simulate.simulation import SimulationBatch
 
+from .featurization import TransactionAnnotator
+
 from log_db import mongo
 from log_db.curriculum_mapper import DB_Curriculum_Mapper
 
@@ -42,7 +44,6 @@ class StudentStatCalc:
 
     def __init__(self, db):
         self.db = db
-
 
     def get_stu_parameters(self, sids):
         sim_students = self.get_stu_attributes(sids)
@@ -115,6 +116,8 @@ class StudentStatCalc:
             sim_students['pre-sim total skill'] = sim_students.apply(lambda x: np.sum(list(x['skills'].values())), axis=1)
             sim_students['final-sim total mastery'] = sim_students.apply(lambda x: np.sum([1 if d >= mastery_thres else 0 for d in list(x['final skills'].values())]), axis=1)
             sim_students['final-sim total skill'] = sim_students.apply(lambda x: np.sum(list(x['final skills'].values())), axis=1)
+            sim_students['total learning'] = sim_students['final-sim total skill'] - sim_students['pre-sim total skill'] 
+            sim_students['total mastered'] = sim_students['final-sim total mastery'] - sim_students['pre-sim total mastery'] 
         else:
             # Binary skill
             logger.warning("************* type is binary skills ***********")
@@ -245,12 +248,47 @@ class StudentStatCalc:
 
         # return stu_kc_stats
 
+
+    def calc_detected_offtask(self, tx):
+        tx_proc = TransactionAnnotator(self.db)
+        if "detect_offtask" not in tx.columns:
+            tx = pd.concat([tx, tx_proc.lbl_nondil_tx(tx)], axis=1)
+        # Student-level off-task vs detected off-task
+        d = tx.groupby("stu_id")['detect_offtask'].mean()
+
+        d.rename("mean_detect_offtask", inplace=True)
+        return d
+
+    def calc_detected_guess(self, tx):
+        tx_proc = TransactionAnnotator(self.db)
+        if "detect_guess" not in tx.columns:
+            tx = pd.concat([tx, tx_proc.lbl_nondil_tx(tx)], axis=1)
+        # Student-level off-task vs detected off-task
+        d = tx.groupby("stu_id")['detect_guess'].mean()
+
+        d.rename("mean_detect_guess", inplace=True)
+        return d
+
+    def calc_time_on_task(self, tx):
+        d = tx.pivot_table(index="stu_id", columns="is_offtask", values="duration", fill_value=0, aggfunc=np.sum).reset_index()
+        d.index = d['stu_id']
+        d.rename(columns={False: "time_on_task", True: "time_off_task"}, inplace=True)
+        d.drop(columns=['stu_id'], inplace=True)
+        d['time_on_task'] = d['time_on_task'] / 3600
+        d['time_off_task'] = d['time_off_task'] / 3600
+        return d
+
     def count_offtask(self, sids):
         tx = pd.DataFrame(self.db.tutor_events.find({"stu_id": {'$in': sids}, 'type': "TutorInput"}))
         tx.index = tx['_id']
         annotator = TransactionAnnotator(self.db)
         tx['is_offtask'] = annotator.label_off_task_tx(tx)
         return tx.groupby("stu_id")['is_offtask'].count()
+
+    def calc_avg_work_rate(self, steps):
+        d = steps.groupby('stu_id')['duration'].agg(['count', 'sum']).rename(columns={'count': 'total_steps', 'sum': 'total_step_time'})
+        work_rate = (d['total_step_time'] / d['total_steps']).rename('avg_time_per_step')
+        return work_rate
 
     def count_offtask(sids):
         """
@@ -267,38 +305,5 @@ class StudentStatCalc:
                 name="total_time").pivot_table(index="stu_id", columns="is_offtask", values="total_time", fill_value=0)
         time.columns = [f"{time.columns.name}_{col}" for col in time.columns]
         return pd.concat([counts, time], axis=1)
-
-
-class TransactionAnnotator:
-
-    def __init__(self, db):
-        self.db = db
-
-    def get_tx_actions(self, tx):
-        d = tx.explode('action_ids').rename(columns={'action_ids': 'action_id'})
-        actions = pd.DataFrame(self.db.actions.find({"_id": {"$in": d['action_id'].tolist()}}))
-        actions['action_type'] = actions.apply(lambda x: x['action']['type'], axis=1)
-        actions.rename(columns={"_id": "action_id"}, inplace=True)
-        d = pd.merge(d[['_id', 'action_id']], actions, on='action_id', how='outer')
-        return d
-
-    def get_tx_decisions(self, tx, get_actions=True):
-        actions = self.get_tx_actions(tx)
-        decisions = pd.DataFrame(self.db.decisions.find({"_id": {"$in": actions['decision_id'].tolist()}}))
-        decisions.rename(columns={"_id": "decision_id"}, inplace=True)
-        if get_actions:
-            return decisions, actions
-        else:
-            return decisions
-
- 
-    def label_offtask_tx(self, tx):
-        d = self.get_tx_actions(tx)
-        return d.groupby("_id")['action_type'].apply(lambda x: "OffTask" in x.tolist())
-
-
-    def label_guess_tx(self, tx):
-        d = self.get_tx_actions(tx)
-        return d.groupby("_id")['action_type'].apply(lambda x: "Guess" in x.tolist())
 
 

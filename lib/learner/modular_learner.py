@@ -66,35 +66,29 @@ class ModularLearner(Learner):
         kc = cntxt.kc
         logger.debug("Action is %s" % str(action))
         if action == Attempt:
-            time = 0
-            loops = 0
-            while time < 0.25:
-                time = random.gauss(kc.m_time, kc.sd_time)
-                loops += 1
-                if loops > 50:
-                    logger.debug(f"Setting time to 0.25\tDuration of action mu: {kc.m_time}\tsd: {kc.sd_time}")
-                    time = 0.25
-
-            is_correct = self.cog.produce_answer(action, cntxt)
-            self.state['attempted'] = True
-
-            if is_correct is not None:
-                # Make is_correct default to True to change later
-                act = Attempt(time, is_correct)
-            else:
-                act = FailedAttempt(time)
-            
+            act = self.make_attempt(cntxt)
         elif action == HintRequest:
             time = 0
-            while time < 0.25:
-                time = random.gauss(self.attributes['mean_hint_time'], self.attributes['sd_hint_time'])
-
+            m = cntxt.kc.m_time / 2
+            sd = cntxt.kc.sd_time / 2
+            loops = 0
+            while (time < 1) and (loops < 50):
+                time = random.gauss(m, sd)
+                loops += 1
+                if loops == 50:
+                    time = 1
             act = HintRequest(time)
         elif action == Guess:
             is_correct = self.cog.produce_answer(action, cntxt)
             time = 0
-            while time < 0.25:
-                time = random.gauss(self.attributes['mean_guess_time'], self.attributes['sd_guess_time'])
+            m = cntxt.kc.m_time / 4
+            sd = cntxt.kc.sd_time / 4
+            loops = 0
+            while (time <  1) and (loops < 50):
+                time = random.gauss(m, sd)
+                loops += 1
+                if loops == 50:
+                    time = 1
             act = Guess(time, is_correct)
         elif action == OffTask:
             act = self.go_offtask(cntxt)
@@ -129,6 +123,39 @@ class ModularLearner(Learner):
 
     def start_working(self, max_t):
         return self.decider.start_working(max_t)
+
+    def make_attempt(self, cntxt):
+        time = 0
+        loops = 0
+        kc = cntxt.kc
+        if hasattr(self.decider, 'get_focus'):
+            focus = self.decider.get_focus(cntxt)
+        else:
+            focus = 1
+
+        if hasattr(self.cog, 'get_speed'):
+            speed = self.cog.get_speed(cntxt)
+        else:
+            speed = 1
+        while time < 0.25:
+            m = kc.m_time * focus * speed
+            time = random.gauss(m, kc.sd_time)
+            loops += 1
+            if loops > 50:
+                logger.debug(f"Setting time to 0.25\tDuration of action mu: {kc.m_time}\tsd: {kc.sd_time}")
+                time = 0.25
+
+        is_correct = self.cog.produce_answer(Attempt, cntxt)
+        self.state['attempted'] = True
+
+        if is_correct is not None:
+            # Make is_correct default to True to change later
+            act = Attempt(time, is_correct)
+        else:
+            act = FailedAttempt(time)
+
+        return act
+            
 
     def go_offtask(self, cntxt):
         if hasattr(self.decider, 'get_offtask_time'):

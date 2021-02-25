@@ -15,6 +15,7 @@ from log_db.learner_log import *
 
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 class SimLogger:
 
@@ -76,7 +77,7 @@ class SimLogger:
 
 
     def log_transaction(self, d):
-        logger.debug("Logging transaction: {d.to_dict()}")
+        logger.debug(f"Logging transaction: {d.to_dict()}")
         # if d.type == "SessionStart":
             # logger.warning(f"Logging Session Start. current tx count: {len(self.transactions)}")
 
@@ -96,7 +97,7 @@ class SimLogger:
 
 
     def log_session(self, d):
-        logger.debug("Logging session: {d.__dict__}")
+        logger.debug(f"Logging session: {d.__dict__}")
         # self.db.class_sessions.insert_one(d.__dict__)
         self.sessions.append(d)
         if len(self.sessions) > self.max_queue:

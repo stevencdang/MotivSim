@@ -184,6 +184,22 @@ class PCorSkillCognition(Cognition):
             return False
 
 
+    def get_speed(self, cntxt):
+        w = 0.25
+        
+        #determine skill specific thresholds
+        pl0 = cntxt.kc.pl0
+        mid = 1 - 0.5* (1 - pl0)
+        # calculate P(correct)
+        skllvl = self.skills[cntxt.kc._id]
+        total_hints = cntxt.hints_used + cntxt.hints_avail
+        hint_exp = cntxt.hints_used / total_hints
+        pcor = skllvl + (1 - skllvl) * hint_exp
+        diff = pcor - mid
+        return 1 - w * (diff / (1 - mid))
+        
+
+
 class BiasSkillCognition(PCorSkillCognition):
     
 
@@ -222,4 +238,18 @@ class BiasSkillCognition(PCorSkillCognition):
     def get_init_args(d):
         return {'ability': d['ability']}
 
+    def practice_skill(self, skill):
+        # Update skill
+        if self.is_skill_mastered(skill):
+            logger.debug("Skill is already mastered. No update necessary")
+        else:
+            # Treating pt as the linear slope coefficient
+            lr = 1 +  self.ability / 5
+            plt1 = self.skills[skill._id] + lr *  skill.pt
+            if plt1 > 1:
+                self.skills[skill._id] = 1
+            else:
+                self.skills[skill._id] = plt1
+
+                
 

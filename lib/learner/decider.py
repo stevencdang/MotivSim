@@ -51,17 +51,32 @@ class Decider:
 
 class EVDecider(Decider):
 
-    def __init__(self):
+    def __init__(self, attr={}, values={}):
         super().__init__()
         self.values = {}
         self.self_eff = 0.5
-        self.init_values()
+        self.init_values(values)
 
-    def init_values(self):
-        atv = 10
-        gsv = 0.25*atv
-        hrv = 3
-        otv = 0.01
+    def init_values(self, values):
+        if 'attempt' in values:
+            atv = values['attempt']
+        else:
+            atv = 10
+
+        if 'guess' in values:
+            gsv = values['guess']
+        else:
+            gsv = 0.25*atv
+
+        if 'hint request' in values:
+            hrv = values['hint request']
+        else:
+            hrv = 3
+
+        if 'off task' in values:
+            otv = values['off task']
+        else:
+            otv = 0.05
 
         self.values = {
             'attempt': atv,
@@ -99,7 +114,7 @@ class EVDecider(Decider):
     def calc_expectancy(self, action, state, cntxt):
         logger.debug("Calculating expectancy for action: %s" % str(action))
         if action == Attempt:
-            self_eff = 0.5
+            self_eff = cntxt.learner_kc_knowledge
             # Adjust expectancy for each hint
             total_hints = cntxt.hints_used + cntxt.hints_avail
             hint_exp = cntxt.hints_used / total_hints
@@ -134,7 +149,8 @@ class EVDecider(Decider):
             else:
                 return 2*self.values['guess']
         elif action == HintRequest:
-            if cntxt.learner_kc_knowledge:
+            if cntxt.learner_kc_knowledge > 0.9:
+                # Hints are less valuable if skill is mastered
                 return 0.25*self.values['hint request']
             else:
                 # Adjust value for each hint
@@ -144,13 +160,17 @@ class EVDecider(Decider):
         elif action == OffTask:
             return self.values['off task']
         elif action == StopWork:
-            tt_end = abs((cntxt.session.end - cntxt.time).total_seconds())
-            mean_stop = 3 * 60
-            base_val = 1 #0.5*self.values['attempt']
-            # logger.info(f"Stop Work Value: { (base_val*mean_stop)/tt_end }\tTime to end: {cntxt.session.end - cntxt.time}")
-            return ((base_val*mean_stop)/tt_end) ** 2
+            return self.get_stop_work_value(state, cntxt)
         else:
             return 0
+
+    def get_stop_work_value(self, state, cntxt):
+        tt_end = abs((cntxt.session.end - cntxt.time).total_seconds())
+        mean_stop = 3 * 60
+        base_val = 1 #0.5*self.values['attempt']
+        # logger.info(f"Stop Work Value: { (base_val*mean_stop)/tt_end }\tTime to end: {cntxt.session.end - cntxt.time}")
+        return ((base_val*mean_stop)/tt_end) ** 2
+        
 
 
 class DiligentDecider(Decider):
@@ -239,12 +259,17 @@ class DiligentDecider(Decider):
         if max_t*60 < mean_start:
             mean_start = max_t
         #Rescale diligence to standard deviations
-        w = self.diligence / 2
+        w = 1 - self.diligence / 8
 
-        mu = mean_start - 2*(w * 60)
+        if hasattr(self.ev_decider, "get_start_speed"):
+            speed = self.ev_decider.get_start_speed()
+        else:
+            speed = 1
+
+        mu = mean_start * w * speed
         if mu < 0.1:
             mu = 0.1
-        sd = 180 - (w * 60)
+        sd = 180 * w * speed
         if sd <= 0.1:
             sd = 0.1
         delay = -1
@@ -256,22 +281,35 @@ class DiligentDecider(Decider):
 
     def get_offtask_time(self, attr):
         if self.diligence < 0:
-            dil = self.diligence
+            dil = 1 - self.diligence / 16
         else:
             dil = self.diligence
-        ot_min = attr['min_off_task'] - dil * self.ot_min_sd if dil < 0 else attr['min_off_task'] - dil * self.ot_min_sd /4
-        if ot_min < 0:
-            ot_min = 10
-        ot_max = attr['max_off_task'] - dil * self.ot_max_sd if dil < 0 else attr['max_off_task'] - dil * self.ot_max_sd /4
-        ot_mean = attr['mean_off_task'] - dil * self.ot_mean_sd if dil < 0 else attr['mean_off_task'] - dil * self.ot_mean_sd /4
-        if ot_mean < 0:
-            ot_mean = ot_min 
+
+        if hasattr(self.ev_decider, "get_offtask_delay"):
+            delay = self.get_offtask_delay()
+        else:
+            delay = 1
+       
+        ot_min = attr['min_off_task'] * dil * delay
+        # ot_min = attr['min_off_task'] - delay * dil * self.ot_min_sd if dil < 0 else attr['min_off_task'] - dil * self.ot_min_sd /4
+        # if ot_min < 0:
+            # ot_min = 10
+        # ot_max = attr['max_off_task'] - dil * self.ot_max_sd if dil < 0 else attr['max_off_task'] - dil * self.ot_max_sd /4
+        ot_max = attr['max_off_task'] * dil * delay
+        ot_mean = attr['mean_off_task' ] * dil * delay 
+        # ot_mean = attr['mean_off_task'] - dil * self.ot_mean_sd if dil < 0 else attr['mean_off_task'] - dil * self.ot_mean_sd /4
+        # if ot_mean < 0:
+            # ot_mean = ot_min 
         ot_sd = (ot_max - ot_mean) / 3
         time = -1
         while (time < ot_min) or (time > ot_max):
             time = random.gauss(ot_mean, ot_sd)
         return time
 
+
+    def get_focus(self, cntxt):
+         return 1 - self.diligence / 12
+        
 
     def to_dict(self):
         out = self.ev_decider.to_dict()
@@ -281,8 +319,8 @@ class DiligentDecider(Decider):
 
 class RandValDecider(EVDecider):
     
-    def __init__(self):
-        super().__init__()
+    def __init__(self, attr={}, values={}):
+        super().__init__(attr, values)
 
     def init_values(self):
         atv = 0
@@ -309,10 +347,12 @@ class RandValDecider(EVDecider):
 
 class DomainSelfEffDecider(EVDecider):
     
-    def __init__(self, self_eff=None):
-        super().__init__()
+    def __init__(self, attr={}, values={}):
+        super().__init__(attr, values)
+        if 'self_eff' not in attr:
+            raise KeyError("'self_eff' key not provided in attr dictionary")
         self.self_eff = 0.5
-        self.init_self_eff(self_eff)
+        self.init_self_eff(attr['self_eff'])
 
     def init_self_eff(self, self_eff):
         if self_eff is not None:
@@ -339,7 +379,7 @@ class DomainSelfEffDecider(EVDecider):
     def calc_expectancy(self, action, state, cntxt):
         logger.debug("Calculating expectancy for action: %s" % str(action))
         if action == Attempt:
-            self_eff = self.calc_self_eff(state, cntxt)
+            self_eff = cntxt.learner_kc_knowledge * self.self_eff
             # Adjust expectancy for each hint
             total_hints = cntxt.hints_used + cntxt.hints_avail
             hint_exp = cntxt.hints_used / total_hints
@@ -348,16 +388,53 @@ class DomainSelfEffDecider(EVDecider):
         else:
             return super().calc_expectancy(action, state, cntxt)
 
-class MathInterestDecider(DomainSelfEffDecider):
+    def calc_value(self, action, state, cntxt):
+        if action == HintRequest:
+            w = 5 * (1 - cntxt.learner_kc_knowledge) * self.self_eff 
+            # Adjust value for each hint
+            total_hints = cntxt.hints_used + cntxt.hints_avail
+            hint_val = cntxt.hints_avail / total_hints
+            return w * self.values['attempt'] + self.values['hint request'] * hint_val
+        else:
+            return super().calc_value(action, state, cntxt)
 
-    def __init__(self, self_eff=None, interest=None):
-        super().__init__(self_eff)
-        if interest is not None:
-            self.interest = interest
+
+    def get_stop_work_value(self, state, cntxt):
+        tt_end = abs((cntxt.session.end - cntxt.time).total_seconds())
+        mean_stop = 3 * 60
+        base_val = 1 #0.5*self.values['attempt']
+        # logger.info(f"Stop Work Value: { (base_val*mean_stop)/tt_end }\tTime to end: {cntxt.session.end - cntxt.time}")
+        return ((base_val*mean_stop)/tt_end) ** 2
+        
+
+
+class MathInterestDecider(EVDecider):
+
+    def __init__(self, attr={}, values={}):
+        super().__init__(attr, values)
+        if 'interest' in attr:
+            self.interest = attr['interest']
         else:
             self.interest = random.gauss(0, 1)
-            w = 2
-            self.values['attempt'] = self.values['attempt'] + w*self.interest
+        w = 1 + self.interest / 8
+        self.values['attempt'] = self.values['attempt'] * w
+        self.values['hint'] = self.values['hint'] * w
+
+    def get_start_speed(self):
+        speed = 1 - self.interest / 8
+        return speed
+
+    def get_offtask_delay(self):
+        delay = 1 - self.interest / 8
+        return delay
+
+
+class MathIntSelfEffDecider(MathInterestDecider, DomainSelfEffDecider):
+
+
+    def __init__(self, attr={}, values={}):
+        super().__init__(attr, values)
+
 
 
 class DomainTunerDecider(EVDecider):
