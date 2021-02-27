@@ -18,8 +18,6 @@ class SessionCalculator:
     def get_student_sessions(self, sids):
         # Get login-logout transactions for students
         tx = pd.DataFrame(self.db.tutor_events.find({"stu_id": {'$in': sids}, "type": {"$in": ["SessionStart", "SessionEnd"]}}))
-        logger.info(tx.shape)
-        logger.info(tx.columns)
         ses_ids = tx['session_id'].unique().tolist()
         # Append session metadata
         sessions = pd.DataFrame(self.db.sessions.find({"_id": {'$in': ses_ids}}))

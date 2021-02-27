@@ -221,7 +221,7 @@ class BiasSkillCognition(PCorSkillCognition):
             else:
                 skl_sd = 0.1
 
-            mu = skill.pl0 - self.ability * 2 * skl_sd
+            mu = skill.pl0 + self.ability * 2 * skl_sd
             
             pl0 = -1
             logger.debug(f"Initialiing skill with mean {mu} and sd {skl_sd}")
@@ -245,7 +245,7 @@ class BiasSkillCognition(PCorSkillCognition):
         else:
             # Treating pt as the linear slope coefficient
             lr = 1 +  self.ability / 5
-            plt1 = self.skills[skill._id] + lr *  skill.pt
+            plt1 = self.skills[skill._id] + skill.pt #* lr
             if plt1 > 1:
                 self.skills[skill._id] = 1
             else:

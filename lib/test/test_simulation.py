@@ -216,8 +216,16 @@ def test_timed_simulation():
     for i in range(num_students):
         # Create student
         ability = random.triangular(-1, 1)
-        cog = BiasSkillCognition(domain, ability)
         ev_decider = EVDecider()
+        cog = BiasSkillCognition(domain, ability)
+        # ev_decider = EVDecider()
+        # se = -1
+        # while (se <= 0) or (se >1):
+            # se = random.gauss(0.5, 0.2)
+        # dec_params = {'attr': {'self_eff': se}}
+        # ev_decider = DomainSelfEffDecider(**dec_params)
+        dec_params = {'attr': {'interest': np.random.normal(0,1)}}
+        ev_decider = MathInterestDecider(**dec_params)
         decider = DiligentDecider(ev_decider)
         stu = ModularLearner(domain, cog, decider)
         logger.debug("inserting new student to db: %s" % str(stu.to_dict()))
@@ -227,7 +235,7 @@ def test_timed_simulation():
         tutor = SimpleTutor(curric, stu._id, mastery_thres)
 
         # Initialize simulation processes
-        num_sessions = 20
+        num_sessions = 5
 
         sim = SingleStudentSim(db, env, sim_start, stu, tutor, 
                                num_sessions, m_ses_len, sd_ses_len, max_ses_len)

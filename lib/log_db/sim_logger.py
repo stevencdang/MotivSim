@@ -15,7 +15,7 @@ from log_db.learner_log import *
 
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+# logger.setLevel(logging.DEBUG)
 
 class SimLogger:
 

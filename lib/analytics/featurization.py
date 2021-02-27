@@ -104,7 +104,7 @@ class Detector:
         self.db = db
 
 
-    def get_kc_long_cutoff(self, tx, thres=0.9):
+    def get_kc_long_cutoff(self, tx, thres=0.95):
             if 'kc' not in tx.columns:
                 tx['kc'] = tx.explode('kcs')['kcs'].apply(lambda x: x['_id'])
             kc_stats = tx.groupby('kc')['duration'].apply(lambda x: np.quantile(x, thres)).to_dict()

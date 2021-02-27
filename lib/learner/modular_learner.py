@@ -138,7 +138,7 @@ class ModularLearner(Learner):
         else:
             speed = 1
         while time < 0.25:
-            m = kc.m_time * focus * speed
+            m = kc.m_time #* focus * speed
             time = random.gauss(m, kc.sd_time)
             loops += 1
             if loops > 50:

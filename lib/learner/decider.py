@@ -179,7 +179,7 @@ class DiligentDecider(Decider):
         super().__init__()
         self.ev_decider = ev_decider
         if dil is None:
-            self.diligence = random.gauss(0,2)
+            self.diligence = random.gauss(0,1)
         else:
             self.diligence = dil
 
@@ -259,7 +259,7 @@ class DiligentDecider(Decider):
         if max_t*60 < mean_start:
             mean_start = max_t
         #Rescale diligence to standard deviations
-        w = 1 - self.diligence / 8
+        w = 1 - self.diligence / 5
 
         if hasattr(self.ev_decider, "get_start_speed"):
             speed = self.ev_decider.get_start_speed()
@@ -286,7 +286,7 @@ class DiligentDecider(Decider):
             dil = self.diligence
 
         if hasattr(self.ev_decider, "get_offtask_delay"):
-            delay = self.get_offtask_delay()
+            delay = self.ev_decider.get_offtask_delay()
         else:
             delay = 1
        
@@ -389,12 +389,19 @@ class DomainSelfEffDecider(EVDecider):
             return super().calc_expectancy(action, state, cntxt)
 
     def calc_value(self, action, state, cntxt):
+        if action == Attempt:
+            # E(w) = 3/8, so multiply by inverse so mean attempt value is the same as base model
+            se = self.self_eff
+            low_se_val = (1-se) * self.values['attempt']
+            skl = cntxt.learner_kc_knowledge
+            high_se_val = se * (skl * self.values['attempt'] + (1-skl) * self.values['hint request'])
+            return low_se_val + high_se_val
         if action == HintRequest:
-            w = 5 * (1 - cntxt.learner_kc_knowledge) * self.self_eff 
-            # Adjust value for each hint
-            total_hints = cntxt.hints_used + cntxt.hints_avail
-            hint_val = cntxt.hints_avail / total_hints
-            return w * self.values['attempt'] + self.values['hint request'] * hint_val
+            se = self.self_eff
+            low_se_val = (1-se) * self.values['hint request']
+            skl = cntxt.learner_kc_knowledge
+            high_se_val = se * (skl * self.values['hint request'] + (1-skl) * self.values['attempt'])
+            return low_se_val + high_se_val
         else:
             return super().calc_value(action, state, cntxt)
 
@@ -406,6 +413,18 @@ class DomainSelfEffDecider(EVDecider):
         # logger.info(f"Stop Work Value: { (base_val*mean_stop)/tt_end }\tTime to end: {cntxt.session.end - cntxt.time}")
         return ((base_val*mean_stop)/tt_end) ** 2
         
+    @staticmethod
+    def from_dict(d):
+        dec_type = getattr(sys.modules[__name__], d['type'])
+        attr = {'self_eff': d['self_eff']}
+        out = dec_type(attr=attr)
+        for key in d.keys():
+            try:
+                setattr(out, key, d[key])
+            except Exception as e:
+                logger.error(f"Issue setting attributes of new module isntance: {str}")
+        return out
+
 
 
 class MathInterestDecider(EVDecider):
@@ -418,15 +437,28 @@ class MathInterestDecider(EVDecider):
             self.interest = random.gauss(0, 1)
         w = 1 + self.interest / 8
         self.values['attempt'] = self.values['attempt'] * w
-        self.values['hint'] = self.values['hint'] * w
+        self.values['hint request'] = self.values['hint request'] * w
 
     def get_start_speed(self):
-        speed = 1 - self.interest / 8
+        speed = 1 - self.interest / 3
         return speed
 
     def get_offtask_delay(self):
-        delay = 1 - self.interest / 8
+        delay = 1 - self.interest / 3
         return delay
+
+    @staticmethod
+    def from_dict(d):
+        dec_type = getattr(sys.modules[__name__], d['type'])
+        attr = {'interest': d['interest']}
+        out = dec_type(attr=attr)
+        for key in d.keys():
+            try:
+                setattr(out, key, d[key])
+            except Exception as e:
+                logger.error(f"Issue setting attributes of new module isntance: {str}")
+        return out
+
 
 
 class MathIntSelfEffDecider(MathInterestDecider, DomainSelfEffDecider):
@@ -434,6 +466,19 @@ class MathIntSelfEffDecider(MathInterestDecider, DomainSelfEffDecider):
 
     def __init__(self, attr={}, values={}):
         super().__init__(attr, values)
+
+    @staticmethod
+    def from_dict(d):
+        dec_type = getattr(sys.modules[__name__], d['type'])
+        attr = {'interest': d['interest'], 'self_eff': d['self_eff']}
+        out = dec_type(attr=attr)
+        for key in d.keys():
+            try:
+                setattr(out, key, d[key])
+            except Exception as e:
+                logger.error(f"Issue setting attributes of new module isntance: {str}")
+        return out
+
 
 
 
