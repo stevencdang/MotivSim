@@ -376,31 +376,40 @@ class DomainSelfEffDecider(EVDecider):
         self_eff = (init_success + state['total_success']) / (init_attempts + state['total_attempts'])
         return self_eff
 
-    def calc_expectancy(self, action, state, cntxt):
-        logger.debug("Calculating expectancy for action: %s" % str(action))
-        if action == Attempt:
-            self_eff = cntxt.learner_kc_knowledge * self.self_eff
-            # Adjust expectancy for each hint
-            total_hints = cntxt.hints_used + cntxt.hints_avail
-            hint_exp = cntxt.hints_used / total_hints
-            exp = self_eff + (1 - self_eff) * hint_exp
-            return exp
-        else:
-            return super().calc_expectancy(action, state, cntxt)
+    # def calc_expectancy(self, action, state, cntxt):
+        # logger.debug("Calculating expectancy for action: %s" % str(action))
+        # if action == Attempt:
+            # b = 0.5
+            # se = b * (1 - self.self_eff)
+            # self_eff = cntxt.learner_kc_knowledge * se
+            # # Adjust expectancy for each hint
+            # total_hints = cntxt.hints_used + cntxt.hints_avail
+            # hint_exp = cntxt.hints_used / total_hints
+            # exp = self_eff + (1 - self_eff) * hint_exp
+            # return exp
+        # else:
+            # return super().calc_expectancy(action, state, cntxt)
 
     def calc_value(self, action, state, cntxt):
+        att_thres = 0.7
         if action == Attempt:
             # E(w) = 3/8, so multiply by inverse so mean attempt value is the same as base model
             se = self.self_eff
             low_se_val = (1-se) * self.values['attempt']
             skl = cntxt.learner_kc_knowledge
-            high_se_val = se * (skl * self.values['attempt'] + (1-skl) * self.values['hint request'])
+            high_se_val = se * (se + 0.5) * self.values['attempt']
+            # high_se_val = se * ((1+ 4*(skl-att_thres)/att_thres)*0.5 * self.values['attempt'] + (1+4*(att_thres-skl)/att_thres)*0.5 * self.values['hint request'])
+            # if high_se_val < 0:
+                # high_se_val = 0
             return low_se_val + high_se_val
         if action == HintRequest:
             se = self.self_eff
             low_se_val = (1-se) * self.values['hint request']
             skl = cntxt.learner_kc_knowledge
-            high_se_val = se * (skl * self.values['hint request'] + (1-skl) * self.values['attempt'])
+            # high_se_val = se * ((1+ 4*(skl-att_thres)/att_thres)*0.5 * self.values['hint request'] + (1+4*(att_thres-skl)/att_thres)*0.5 * self.values['attempt'])
+            # if high_se_val < 0:
+                # high_se_val = 0
+            high_se_val = se * (1.5 - se) * self.values['hint request']
             return low_se_val + high_se_val
         else:
             return super().calc_value(action, state, cntxt)
@@ -413,6 +422,10 @@ class DomainSelfEffDecider(EVDecider):
         # logger.info(f"Stop Work Value: { (base_val*mean_stop)/tt_end }\tTime to end: {cntxt.session.end - cntxt.time}")
         return ((base_val*mean_stop)/tt_end) ** 2
         
+    def get_start_speed(self):
+        speed = 1 - self.self_eff / 3
+        return speed
+
     @staticmethod
     def from_dict(d):
         dec_type = getattr(sys.modules[__name__], d['type'])
@@ -466,6 +479,10 @@ class MathIntSelfEffDecider(MathInterestDecider, DomainSelfEffDecider):
 
     def __init__(self, attr={}, values={}):
         super().__init__(attr, values)
+
+    def get_start_speed(self):
+        speed = 1 - (self.self_eff + self.interest) / 5
+        return speed
 
     @staticmethod
     def from_dict(d):

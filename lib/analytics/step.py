@@ -13,6 +13,9 @@ class StepCalculator:
         self.db = db
 
     def rollup_tx(self, tx):
+
+        #Step outcome
+        step_outcome = tx.sort_values('time').groupby(['stu_id', 'unit_id', 'section_id', 'prob_id', 'step_id'])['outcome'].first()
         
         # Count outcomes
         outcomes = tx.pivot_table(index=['stu_id', 'unit_id', 'section_id', 'prob_id', 'step_id'], columns=['outcome'], values='duration', aggfunc=len, fill_value=0)
@@ -31,7 +34,7 @@ class StepCalculator:
         # Get time stamp for last tx
         time = tx.groupby(['stu_id', 'unit_id', 'section_id', 'prob_id', 'step_id'])['time'].agg(lambda x: x.sort_values().iloc[-1])
 
-        steps = pd.concat([outcomes, actions, duration, attempts, plt, plt1, lk, time], axis=1)
+        steps = pd.concat([step_outcome, outcomes, actions, duration, attempts, plt, plt1, lk, time], axis=1)
 
         # Get kc
         steps = pd.merge(steps, tx.loc[:, ['stu_id', 'unit_id', 'section_id', 'prob_id', 'step_id', 'kc' ]].drop_duplicates(), on=['stu_id', 'unit_id', 'section_id', 'prob_id', 'step_id'], how='inner')
