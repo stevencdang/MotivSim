@@ -45,17 +45,18 @@ class TransactionEncoder(json.JSONEncoder):
 @dataclass
 class SessionStart(Transaction):
     
-   session_id: str
+    session_id: str
 
 
 @dataclass
 class SessionEnd(Transaction):
     
-   session_id: str
+    session_id: str
 
 @dataclass
 class TutorInput(Transaction):
    
+    session_id: str
     curric_id: str
     unit_id : str
     section_id : str

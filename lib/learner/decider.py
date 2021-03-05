@@ -205,6 +205,12 @@ class DiligentDecider(Decider):
                     # choice_evs[choice.__name__]['ev'] = 1/(-self.diligence) * choice_evs[choice.__name__]['ev']
                 # else:
                     # choice_evs[choice.__name__]['ev'] = self.diligence * choice_evs[choice.__name__]['ev']
+            if choice == StopWork:
+                dil = self.diligence
+                w = dil + 1 if dil > 0 else dil - 1
+                w = 1 - (w / 25)
+                choice_evs[choice.__name__]['ev'] = w * choice_evs[choice.__name__]['ev']
+                
 
         pev = []
 
@@ -259,7 +265,7 @@ class DiligentDecider(Decider):
         if max_t*60 < mean_start:
             mean_start = max_t
         #Rescale diligence to standard deviations
-        w = 1 - self.diligence / 5
+        w = 1 - self.diligence / 5 
 
         if hasattr(self.ev_decider, "get_start_speed"):
             speed = self.ev_decider.get_start_speed()
@@ -269,7 +275,8 @@ class DiligentDecider(Decider):
         mu = mean_start * w * speed
         if mu < 0.1:
             mu = 0.1
-        sd = 180 * w * speed
+        sd = 300 
+        # sd = 180 * w * speed
         if sd <= 0.1:
             sd = 0.1
         delay = -1
@@ -422,9 +429,9 @@ class DomainSelfEffDecider(EVDecider):
         # logger.info(f"Stop Work Value: { (base_val*mean_stop)/tt_end }\tTime to end: {cntxt.session.end - cntxt.time}")
         return ((base_val*mean_stop)/tt_end) ** 2
         
-    def get_start_speed(self):
-        speed = 1 - self.self_eff / 3
-        return speed
+    # def get_start_speed(self):
+        # speed = 1 - self.self_eff / 3
+        # return speed
 
     @staticmethod
     def from_dict(d):
@@ -483,6 +490,30 @@ class MathIntSelfEffDecider(MathInterestDecider, DomainSelfEffDecider):
     def get_start_speed(self):
         speed = 1 - (self.self_eff + self.interest) / 5
         return speed
+
+    def calc_value(self, action, state, cntxt):
+        att_thres = 0.7
+        if action == Attempt:
+            # E(w) = 3/8, so multiply by inverse so mean attempt value is the same as base model
+            se = self.self_eff
+            low_se_val = (1-se) * self.values['attempt']
+            skl = cntxt.learner_kc_knowledge
+            high_se_val = se * (se + 0.5) * self.values['attempt']
+            # high_se_val = se * ((1+ 4*(skl-att_thres)/att_thres)*0.5 * self.values['attempt'] + (1+4*(att_thres-skl)/att_thres)*0.5 * self.values['hint request'])
+            # if high_se_val < 0:
+                # high_se_val = 0
+            return low_se_val + high_se_val
+        if action == HintRequest:
+            se = self.self_eff
+            low_se_val = (1-se) * self.values['hint request']
+            skl = cntxt.learner_kc_knowledge
+            # high_se_val = se * ((1+ 4*(skl-att_thres)/att_thres)*0.5 * self.values['hint request'] + (1+4*(att_thres-skl)/att_thres)*0.5 * self.values['attempt'])
+            # if high_se_val < 0:
+                # high_se_val = 0
+            high_se_val = se * (1.5 - se) * self.values['hint request']
+            return low_se_val + high_se_val
+        else:
+            return super().calc_value(action, state, cntxt)
 
     @staticmethod
     def from_dict(d):

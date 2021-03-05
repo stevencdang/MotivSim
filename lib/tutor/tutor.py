@@ -90,6 +90,12 @@ class SimpleTutor(Tutor):
     def login(self, session, time):
         tx = super().login(session, time)
         self.state.last_tx_time = time
+        self.state.session = session
+        return tx
+
+    def logout(self, session, time):
+        tx = super().logout(session, time)
+        self.state.session = None
         return tx
 
     def process_attempt(self, inpt, time):
@@ -308,7 +314,8 @@ class SimpleTutor(Tutor):
 
         kc = self.state.step.kcs[0]
         duration = (time - self.state.last_tx_time).total_seconds()
-        tx = TutorInput(time=time,
+        tx = TutorInput(session_id=self.state.session._id,
+                        time=time,
                         curric_id=self.curric._id,
                         unit_id=self.state.unit._id,
                         section_id=self.state.section._id,
@@ -341,6 +348,7 @@ class SimpleTutorState:
         # Tracking completed content in curriculum
         self.completed = {}
         # Tracking mastery of all skills within domain
+        self.session = None
         self.mastery = {}
         self.unit = None
         self.section = None
