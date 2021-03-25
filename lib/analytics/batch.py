@@ -165,13 +165,13 @@ class Segmenter:
         batch_query = {"$and": [self.base_query, query]}
         if not batch:
             # Return all data
-            d = pd.DataFrame(self.db_col.find(query))
+            d = pd.DataFrame(self.db_col.find(batch_query))
             if fields is None:
                 return batch_query, d
             else:
                 return batch_query, d.loc[:, fields]
         else:
-            docs = self.db_col.find(query)
+            docs = self.db_col.find(batch_query)
             subset = []
             frames = []
 
