@@ -7,6 +7,7 @@ import logging
 import random
 import copy
 import numpy as np
+import pickle
 
 
 from log_db import mongo
@@ -38,59 +39,87 @@ class Decider:
         # Default to start working immediately
         return 0
 
-    @staticmethod
-    def from_dict(d):
-        dec_type = getattr(sys.modules[__name__], d['type'])
-        out = dec_type()
-        for key in d.keys():
-            try:
-                setattr(out, key, d[key])
-            except Exception as e:
-                logger.error(f"Issue setting attributes of new module isntance: {str}")
-        return out
 
 class EVDecider(Decider):
 
-    def __init__(self, attr={}, values={}):
+    def __init__(self, attr={}, values={}, exp={}, constructs=[]):
         super().__init__()
+        self.attr = attr
+
+        if 'mean_start' not in attr:
+            self.attr['mean_start'] = 5*60 # 5 minutes
+        if 'start_sd' not in attr:
+            self.attr['start_sd'] = 300
+
+        self.constructs = {type(c): c for c in constructs}
         self.values = {}
-        self.self_eff = 0.5
+        self.exps = {}
         self.init_values(values)
+        self.init_expectancies(exp)
 
     def init_values(self, values):
-        if 'attempt' in values:
-            atv = values['attempt']
-        else:
-            atv = 10
+        req_vals = {Attempt: lambda s,c: 10,
+                    Guess: lambda s,c: 2.5,
+                    HintRequest: lambda s,c: 3,
+                    OffTask: lambda s,c: 0.05,
+                    StopWork: self.get_stop_work_value
+                   }
 
-        if 'guess' in values:
-            gsv = values['guess']
-        else:
-            gsv = 0.25*atv
+        # Setup required values with defaults if not given
+        for v in req_vals:
+            if v in values:
+                self.values[v] = values[v]
+            else:
+                self.values[v] = req_vals[v]
+       
+        # Add all other given values
+        for v in values:
+            if v not in req_vals:
+                self.values[v] = values[v]
 
-        if 'hint request' in values:
-            hrv = values['hint request']
-        else:
-            hrv = 3
-
-        if 'off task' in values:
-            otv = values['off task']
-        else:
-            otv = 0.05
-
-        self.values = {
-            'attempt': atv,
-            'guess': gsv,
-            'hint request': hrv,
-            'off task': otv
-        }
-
+    def init_expectancies(self, exp):
+        req_exp = {Attempt: lambda s,c: 0.5, 
+                   Guess: lambda s,c: 1, 
+                   HintRequest: lambda s,c: 1, 
+                   OffTask: lambda s,c: 1,
+                   StopWork: lambda s,c: 1
+                  }
+        # Setup required expectancies  with defaults if not given
+        for e in req_exp:
+            if e in exp:
+                self.exps[e] = exp[e]
+            else:
+                self.exps[e] = req_exp[e]
+       
+        # Add all other given expectancies
+        for e in exp:
+            if e not in req_exp:
+                self.exps[e] = exp[e]
 
     def choose(self, choices, state, cntxt):
         # Calc choice distribution
         choice_evs = self.calc_ev(choices, state, cntxt)
-        total_ev = np.sum([val['ev'] for val in choice_evs.values()])
-        pev = [choice_evs[choice.__name__]['ev']/total_ev for choice in choices]
+
+        if np.sum([v['ev'] > 0 for v in choice_evs.values()]) > 0:
+            # There is at least 1 postive EV, choose most valued action
+            total_ev = np.sum([val['ev'] for val in choice_evs.values() if val['ev'] > 0])
+            for choice in choices:
+                if choice_evs[choice.__name__]['ev'] > 0:
+                    pev.append(choice_evs[choice.__name__]['ev']/total_ev)
+                else:
+                    pev.append(0)
+        else:
+            # reverse order of negative costs
+            logger.warning(f"Have negative costs. Diligence: {self.diligence}")
+            vals = [val['ev'] for val in choice_evs.values()]
+            total_ev = abs(np.sum(vals))
+            ev_min  = np.min(vals)
+            ev_max = np.max(vals)
+            offset = ev_min + ev_max
+            # for choice in choices:
+                # pev.append(choice_evs[choice.__name__]['ev']/total_ev)
+            pev = [(choice_evs[choice.__name__]['ev'] - offset)/total_ev for choice in choices]
+
         
         # Make choice
         choice = random.choices(choices, weights=pev, k=1)[0]
@@ -113,56 +142,67 @@ class EVDecider(Decider):
 
     def calc_expectancy(self, action, state, cntxt):
         logger.debug("Calculating expectancy for action: %s" % str(action))
-        if action == Attempt:
-            self_eff = cntxt.learner_kc_knowledge
-            # Adjust expectancy for each hint
-            total_hints = cntxt.hints_used + cntxt.hints_avail
-            hint_exp = cntxt.hints_used / total_hints
-            exp = self_eff + (1 - self_eff) * hint_exp
-            return exp
-        elif action == Guess:
-            exp = random.gauss(0.10, 0.02)
-            if exp < 0:
-                exp = 0
-            elif exp >1:
-                exp = 1
-            return 0.1
-        elif action == HintRequest:
-            if cntxt.hints_avail == 0:
-                return 0
-            else:
-                return 1
-        elif action == OffTask:
-            return 1
-        elif action == StopWork:
-            return 1
-        else:
-            return 0
+        base_exp = self.exps[action](state, cntxt)
+        for c in self.constructs.values():
+            base_exp = c.calc_base_exp(base_exp, action, state, cntxt)
+        weighted_exp = base_exp
+        for c in self.constructs.values():
+            weighted_exp = c.calc_weighted_exp(weighted_exp, action, state, contxt)
+        total_exp = weighted_exp
+        for c in self.constructs.values():
+            total_exp = c.calc_total_exp(total_exp, action, state, contxt)
+        return total_exp
+    
 
     def calc_value(self, action, state, cntxt):
         logger.debug("Calculating value for action: %s" % str(action))
-        if action == Attempt:
-            return self.values['attempt']
-        elif action == Guess:
-            if cntxt.learner_kc_knowledge:
-                return self.values['guess']
-            else:
-                return 2*self.values['guess']
-        elif action == HintRequest:
-            if cntxt.learner_kc_knowledge > 0.9:
-                # Hints are less valuable if skill is mastered
-                return 0.25*self.values['hint request']
-            else:
-                # Adjust value for each hint
-                total_hints = cntxt.hints_used + cntxt.hints_avail
-                hint_val = cntxt.hints_avail / total_hints
-                return self.values['hint request'] * hint_val
-        elif action == OffTask:
-            return self.values['off task']
-        elif action == StopWork:
-            return self.get_stop_work_value(state, cntxt)
-        else:
-            return 0
+        base = self.values[action](state, cntxt)
+        for c in self.constructs.values():
+            base = c.calc_base_val(base, action, state, cntxt)
+        weighted = base
+        for c in self.constructs.values():
+            weighted = c.calc_weighted_val(weighted, action, state, contxt)
+        total = weighted
+        for c in self.constructs.values():
+            total = c.calc_total_val(total, action, state, contxt)
+        return total
+    
+    def start_working(self, max_t):
+        mean_start = self.attr['mean_start']
+        if max_t*60 < mean_start:
+            mean_start = max_t
+        
+        w = 1
+        for c in self.constructs.values():
+            if hasattr(c, 'get_start_speed'):
+                w = c.get_start_speed(w)
+
+        mu = mean_start * w
+        if mu < 1:
+            mu = 1
+        sd = self.attr['start_sd']
+
+        delay = -1
+        while (delay < 0) or (delay > max_t):
+            delay = np.random.normal(mu, sd)
+
+        return delay
+
+    def get_offtask_time(self, attr):
+        w = 1
+        for c in self.constructs.values():
+            if hasattr(c, 'get_offtask_delay'):
+                w = c.get_offtask_delay(w)
+
+        ot_min = attr['min_off_task'] * w
+        ot_max = attr['max_off_task'] * w
+        ot_mean = attr['mean_off_task' ] * w
+        ot_sd = (ot_max - ot_mean) / 3
+        time = -1
+        while (time < ot_min) or (time > ot_max):
+            time = random.gauss(ot_mean, ot_sd)
+        return time
+
 
     def get_stop_work_value(self, state, cntxt):
         tt_end = abs((cntxt.session.end - cntxt.time).total_seconds())
@@ -170,83 +210,71 @@ class EVDecider(Decider):
         base_val = 1 #0.5*self.values['attempt']
         # logger.info(f"Stop Work Value: { (base_val*mean_stop)/tt_end }\tTime to end: {cntxt.session.end - cntxt.time}")
         return ((base_val*mean_stop)/tt_end) ** 2
-        
+
+    def to_dict(self):
+        obj = super().to_dict()
+        # do not return expectancies and values as output dict
+        del obj["exps"]
+        del obj["values"]
+        obj['constructs'] = {k.__name__: c.to_dict() for k,c in obj['constructs'].items()}
+        for k,c in self.constructs.items():
+            for attr, val in vars(c).items():
+                obj[k.__name__ + "__" + attr] = val
+
+        return obj
 
 
-class DiligentDecider(Decider):
+class DecisionConstruct:
 
-    def __init__(self, ev_decider, dil=None, ot_min_sd=60, ot_max_sd=300, ot_mean_sd=20):
-        super().__init__()
-        self.ev_decider = ev_decider
-        if dil is None:
-            self.diligence = random.gauss(0,1)
+    def __init__(self, attrs={}):
+        for key in attrs:
+            setattr(self, key, attrs[key])
+
+    def calc_base_exp(self, val, action, state, cntxt):
+        return val
+
+    def calc_weighted_exp(self, val, action, state, cntxt):
+        return val
+
+    def calc_total_exp(self, val, action, state, cntxt):
+        return val
+
+    def calc_base_val(self, val, action, state, cntxt):
+        return val
+
+    def calc_weighted_val(self, val, action, state, cntxt):
+        return val
+
+    def calc_total_val(self, val, action, state, cntxt):
+        return val
+
+    def to_dict(self):
+        out = copy.deepcopy(self.__dict__)
+        return out
+
+
+
+class Diligence(DecisionConstruct):
+
+    def __init__(self, attrs={}):
+        super().__init__(attrs)
+        if 'diligence' not in attrs:
+            setattr(self, 'diligence',random.gauss(0,1))
+
+    def calc_weighted_val(self, val, action, state, cntxt):
+        if action == StopWork:
+            dil = self.diligence
+            w = dil + 1 if dil > 0 else dil - 1
+            w = 1 - (w / 25)
+            return w * val
         else:
-            self.diligence = dil
-
-        self.ot_min_sd = ot_min_sd
-        self.ot_max_sd = ot_max_sd
-        self.ot_mean_sd = ot_mean_sd
-
-    def choose(self, choices, state, cntxt):
-        # Get base choice distribution
-        choice_evs = self.ev_decider.calc_ev(choices, state, cntxt)
-        # Adjust ev for diligent actions
-        for choice in choices:
-            if self.is_diligent(choice, state, cntxt):
+            if self.is_diligent(action, state, cntxt):
                 dil = self.diligence
                 w = dil + 1 if dil > 0 else dil - 1
                 w = 1 + (w / 10)
-                # Diligence is a constant adjustment on desired over undesired actions. 
-
-                # This is should be reconsidered based on theory
-                choice_evs[choice.__name__]['ev'] = w * choice_evs[choice.__name__]['ev']
-
-                # if self.diligence < 0:
-                    # choice_evs[choice.__name__]['ev'] = 1/(-self.diligence) * choice_evs[choice.__name__]['ev']
-                # else:
-                    # choice_evs[choice.__name__]['ev'] = self.diligence * choice_evs[choice.__name__]['ev']
-            if choice == StopWork:
-                dil = self.diligence
-                w = dil + 1 if dil > 0 else dil - 1
-                w = 1 - (w / 25)
-                choice_evs[choice.__name__]['ev'] = w * choice_evs[choice.__name__]['ev']
-                
-
-        pev = []
-
-        # Calc choice distribution
-        if np.sum([val['ev'] > 0 for val in choice_evs.values()]) > 0:
-            # There is at least 1 postive EV, choose most valued action
-            total_ev = np.sum([val['ev'] for val in choice_evs.values() if val['ev'] > 0])
-            for choice in choices:
-                if choice_evs[choice.__name__]['ev'] > 0:
-                    pev.append(choice_evs[choice.__name__]['ev']/total_ev)
-                else:
-                    pev.append(0)
-
-        else:
-            # reverse order of negative costs
-            logger.warning(f"Have negative costs. Diligence: {self.diligence}")
-            vals = [val['ev'] for val in choice_evs.values()]
-            total_ev = abs(np.sum(vals))
-            ev_min  = np.min(vals)
-            ev_max = np.max(vals)
-            offset = ev_min + ev_max
-            # for choice in choices:
-                # pev.append(choice_evs[choice.__name__]['ev']/total_ev)
-            pev = [(choice_evs[choice.__name__]['ev'] - offset)/total_ev for choice in choices]
-
-
-
-        # pev = [choice_evs[choice.__name__]['ev']/total_ev if choice_evs[ for choice in choices]
-        
-        choice = random.choices(choices, weights=pev, k=1)[0]
-
-        if choice == StopWork:
-            logger.debug(f"Choosing to stop. Choice_EVs: {choice_evs}\tP(EV): {str(pev)}")
-            # logger.warning(f"Choosing to stop. Diligence: {self.diligence}\t") 
-        return choice, {"choice_evs": choice_evs, "pev": pev}
-
+                return w * val
+            else:
+                return val
 
     def is_diligent(self, action, state, cntxt):
         if action == Attempt:
@@ -259,70 +287,32 @@ class DiligentDecider(Decider):
             return False
         elif action == StopWork:
             return ((cntxt.session.end - cntxt.time).total_seconds() < 300) # 5 minutes
-
-    def start_working(self, max_t):
-        mean_start = 5*60 # 5 minutes
-        if max_t*60 < mean_start:
-            mean_start = max_t
-        #Rescale diligence to standard deviations
-        w = 1 - self.diligence / 5 
-
-        if hasattr(self.ev_decider, "get_start_speed"):
-            speed = self.ev_decider.get_start_speed()
         else:
-            speed = 1
+            return False
 
-        mu = mean_start * w * speed
-        if mu < 0.1:
-            mu = 0.1
-        sd = 300 
-        # sd = 180 * w * speed
-        if sd <= 0.1:
-            sd = 0.1
-        delay = -1
-        while (delay < 0) or (delay > max_t):
-            delay = np.random.normal(mu, sd)
+    def get_start_speed(self, w):
+        return w * (1 + self.diligence / 10)
 
-        logger.debug(f"Diligence: {self.diligence}\t max_t: {max_t/60}\tmu: {mu/60}\tsd: {sd/60}\tdelay: {delay/60}")
-        return delay
+    def get_offtask_delay(self, w):
+        return w * (1 - self.diligence / 16)
 
-    def get_offtask_time(self, attr):
-        if self.diligence < 0:
-            dil = 1 - self.diligence / 16
-        else:
-            dil = self.diligence
 
-        if hasattr(self.ev_decider, "get_offtask_delay"):
-            delay = self.ev_decider.get_offtask_delay()
-        else:
-            delay = 1
-       
-        ot_min = attr['min_off_task'] * dil * delay
-        # ot_min = attr['min_off_task'] - delay * dil * self.ot_min_sd if dil < 0 else attr['min_off_task'] - dil * self.ot_min_sd /4
-        # if ot_min < 0:
-            # ot_min = 10
-        # ot_max = attr['max_off_task'] - dil * self.ot_max_sd if dil < 0 else attr['max_off_task'] - dil * self.ot_max_sd /4
-        ot_max = attr['max_off_task'] * dil * delay
-        ot_mean = attr['mean_off_task' ] * dil * delay 
-        # ot_mean = attr['mean_off_task'] - dil * self.ot_mean_sd if dil < 0 else attr['mean_off_task'] - dil * self.ot_mean_sd /4
-        # if ot_mean < 0:
-            # ot_mean = ot_min 
-        ot_sd = (ot_max - ot_mean) / 3
-        time = -1
-        while (time < ot_min) or (time > ot_max):
-            time = random.gauss(ot_mean, ot_sd)
-        return time
+class DiligentDecider(EVDecider):
 
+    # def __init__(self, ev_decider, dil=None, ot_min_sd=60, ot_max_sd=300, ot_mean_sd=20):
+    def __init__(self, attr={}, values={}, exp={}, constructs={}):
+        super().__init__(attr, values, exp, constructs)
+        # self.ev_decider = ev_decider
+
+        # Initialize diligence construct if not provided
+        if sum([type(c) == Diligence for c in constructs]) == 0:
+            if 'diligence' not in attr:
+                self.constructs[Diligence] = Diligence()
+                # self.attr['diligence'] = random.gauss(0,1)
 
     def get_focus(self, cntxt):
-         return 1 - self.diligence / 12
+        return 1 - self.constructs[Diligence].diligence / 12
         
-
-    def to_dict(self):
-        out = self.ev_decider.to_dict()
-        out['diligence'] = self.diligence
-        return out
-
 
 class RandValDecider(EVDecider):
     

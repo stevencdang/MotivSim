@@ -3,6 +3,8 @@
 import uuid
 import logging
 import random
+import pickle
+import dill
 
 from log_db import mongo
 
@@ -169,13 +171,17 @@ class ModularLearner(Learner):
             return OffTask(time)
             
 
-
     def to_dict(self):
         # self.skills = copy.deepcopy(self.cog.skills)
         d = super().to_dict()
         d['cog'] = self.cog.to_dict()
         d['decider'] = self.decider.to_dict()
         # self.skills = self.cog.skills
+        d['pickle'] = dill.dumps(self)
 
-        return d
+        # return {"pickle": dill.dumps(self)}
+        return  d
     
+    @staticmethod
+    def from_dict(d):
+        return dill.loads(d['pickle'])

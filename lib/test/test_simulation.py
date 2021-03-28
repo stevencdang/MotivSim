@@ -1,4 +1,6 @@
 # Script to test a simulation
+# Script should be run from the folder containing the file. 
+# Assumes the root directory of the library is one directory up
 # Add project root to python path
 import sys
 sys.path.append('..')
@@ -7,6 +9,7 @@ import logging
 import random
 import uuid
 import datetime as dt
+import dill
 
 import simpy
 
@@ -69,7 +72,7 @@ def gen_curriculum(db, db_params):
                      'stdev_steps': 4,
                      'mean_prob_kcs': 6,
                      'stdev_prob_kcs': 3,
-                     'num_practice': 400
+                     'num_practice': 10
     }
 
     domain, curric = CurriculumFactory.gen_curriculum(domain_params, curric_params)
@@ -162,14 +165,16 @@ def test_modlearner():
     num_students = 1
     for i in range(num_students):
         cog = BinarySkillCognition(domain)
-        ev_decider = RandValDecider()
-        decider = DiligentDecider(ev_decider)
+        decider = DiligentDecider()
         stu = ModularLearner(domain, cog, decider)
         logger.debug("inserting new student to db: %s" % str(stu.to_dict()))
+        d = stu.to_dict()
         db.students.insert_one(stu.to_dict())
-        logger.info("Simulating student #%i" % i)
-        sim = ModLearnerSimulation(domain, curric, stu)
-        sim.run()
+        d1 = dill.loads(d['pickle'])
+        logger.info(f"Got from unpickling: {d1}")
+        # logger.info("Simulating student #%i" % i)
+        # sim = ModLearnerSimulation(domain, curric, stu)
+        # sim.run()
     logger.info("Finished simulation")
     
     # Print new contents of db
@@ -247,6 +252,6 @@ def test_timed_simulation():
 if __name__ == "__main__":
     # test_simple_tutor()
     #test_selfeff_learner()
-    # test_modlearner()
+    test_modlearner()
     # test_biaslearner()
-    test_timed_simulation()
+    # test_timed_simulation()
