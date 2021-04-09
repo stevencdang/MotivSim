@@ -168,13 +168,10 @@ def test_modlearner():
         decider = DiligentDecider()
         stu = ModularLearner(domain, cog, decider)
         logger.debug("inserting new student to db: %s" % str(stu.to_dict()))
-        d = stu.to_dict()
         db.students.insert_one(stu.to_dict())
-        d1 = dill.loads(d['pickle'])
-        logger.info(f"Got from unpickling: {d1}")
-        # logger.info("Simulating student #%i" % i)
-        # sim = ModLearnerSimulation(domain, curric, stu)
-        # sim.run()
+        logger.info("Simulating student #%i" % i)
+        sim = ModLearnerSimulation(domain, curric, stu)
+        sim.run()
     logger.info("Finished simulation")
     
     # Print new contents of db
@@ -229,9 +226,12 @@ def test_timed_simulation():
             # se = random.gauss(0.5, 0.2)
         # dec_params = {'attr': {'self_eff': se}}
         # ev_decider = DomainSelfEffDecider(**dec_params)
-        dec_params = {'attr': {'interest': np.random.normal(0,1)}}
-        ev_decider = MathInterestDecider(**dec_params)
-        decider = DiligentDecider(ev_decider)
+        # dec_params = {'attr': {'interest': np.random.normal(0,1)}}
+        # ev_decider = MathInterestDecider(**dec_params)
+        constructs = [Diligence(attrs={'diligence': random.gauss(0,1)})]
+        dec_params = {'constructs': constructs}
+        decider = DiligentDecider(**dec_params)
+        # decider = DiligentDecider(ev_decider)
         stu = ModularLearner(domain, cog, decider)
         logger.debug("inserting new student to db: %s" % str(stu.to_dict()))
         db.students.insert_one(stu.to_dict())
@@ -244,14 +244,16 @@ def test_timed_simulation():
 
         sim = SingleStudentSim(db, env, sim_start, stu, tutor, 
                                num_sessions, m_ses_len, sd_ses_len, max_ses_len)
+                
         env.process(sim.run())
         
     env.run()
 
+    db_util.peak()
 
 if __name__ == "__main__":
     # test_simple_tutor()
     #test_selfeff_learner()
-    test_modlearner()
+    # test_modlearner()
     # test_biaslearner()
-    # test_timed_simulation()
+    test_timed_simulation()

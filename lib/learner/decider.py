@@ -18,6 +18,7 @@ from log_db.learner_log import *
 
 
 logger = logging.getLogger(__name__)
+# logger.setLevel(logging.DEBUG)
 
 class Decider:
 
@@ -99,6 +100,7 @@ class EVDecider(Decider):
     def choose(self, choices, state, cntxt):
         # Calc choice distribution
         choice_evs = self.calc_ev(choices, state, cntxt)
+        pev = []
 
         if np.sum([v['ev'] > 0 for v in choice_evs.values()]) > 0:
             # There is at least 1 postive EV, choose most valued action
@@ -147,10 +149,10 @@ class EVDecider(Decider):
             base_exp = c.calc_base_exp(base_exp, action, state, cntxt)
         weighted_exp = base_exp
         for c in self.constructs.values():
-            weighted_exp = c.calc_weighted_exp(weighted_exp, action, state, contxt)
+            weighted_exp = c.calc_weighted_exp(weighted_exp, action, state, cntxt)
         total_exp = weighted_exp
         for c in self.constructs.values():
-            total_exp = c.calc_total_exp(total_exp, action, state, contxt)
+            total_exp = c.calc_total_exp(total_exp, action, state, cntxt)
         return total_exp
     
 
@@ -161,10 +163,10 @@ class EVDecider(Decider):
             base = c.calc_base_val(base, action, state, cntxt)
         weighted = base
         for c in self.constructs.values():
-            weighted = c.calc_weighted_val(weighted, action, state, contxt)
+            weighted = c.calc_weighted_val(weighted, action, state, cntxt)
         total = weighted
         for c in self.constructs.values():
-            total = c.calc_total_val(total, action, state, contxt)
+            total = c.calc_total_val(total, action, state, cntxt)
         return total
     
     def start_working(self, max_t):
@@ -217,12 +219,33 @@ class EVDecider(Decider):
         del obj["exps"]
         del obj["values"]
         obj['constructs'] = {k.__name__: c.to_dict() for k,c in obj['constructs'].items()}
+        obj['construct_attrs'] = []
         for k,c in self.constructs.items():
             for attr, val in vars(c).items():
-                obj[k.__name__ + "__" + attr] = val
+                name = k.__name__ + "__" + attr
+                obj['construct_attrs'].append(name)
+                obj[name] = val
 
         return obj
 
+
+class DiligentDecider(EVDecider):
+
+    # def __init__(self, ev_decider, dil=None, ot_min_sd=60, ot_max_sd=300, ot_mean_sd=20):
+    def __init__(self, attr={}, values={}, exp={}, constructs=[]):
+        super().__init__(attr, values, exp, constructs)
+        # self.ev_decider = ev_decider
+
+        # Initialize diligence construct if not provided
+        if sum([type(c) == Diligence for c in constructs]) == 0:
+            if Diligence not in constructs:
+                logger.info("Adding Diligence Construct to learner")
+                self.constructs[Diligence] = Diligence()
+                # self.attr['diligence'] = random.gauss(0,1)
+
+    def get_focus(self, cntxt):
+        return 1 - self.constructs[Diligence].diligence / 12
+    
 
 class DecisionConstruct:
 
@@ -251,7 +274,6 @@ class DecisionConstruct:
     def to_dict(self):
         out = copy.deepcopy(self.__dict__)
         return out
-
 
 
 class Diligence(DecisionConstruct):
@@ -297,22 +319,24 @@ class Diligence(DecisionConstruct):
         return w * (1 - self.diligence / 16)
 
 
-class DiligentDecider(EVDecider):
+class DomainSelfEff(DecisionConstruct):
 
-    # def __init__(self, ev_decider, dil=None, ot_min_sd=60, ot_max_sd=300, ot_mean_sd=20):
-    def __init__(self, attr={}, values={}, exp={}, constructs={}):
-        super().__init__(attr, values, exp, constructs)
-        # self.ev_decider = ev_decider
+    def __init__(self, attrs={}):
+        super().__init__(attrs)
+        if 'self_eff' not in attrs:
+            setattr(self, 'self_eff',random.gauss(0,1))
 
-        # Initialize diligence construct if not provided
-        if sum([type(c) == Diligence for c in constructs]) == 0:
-            if 'diligence' not in attr:
-                self.constructs[Diligence] = Diligence()
-                # self.attr['diligence'] = random.gauss(0,1)
+    def calc_weighted_exp(self, val, action, state, cntxt):
+        if action == Attempt:
+            # w = dil + 1 if dil > 0 else dil - 1
+            w = 1 + (self.self_eff / 5)
+            new_val = w * val
+            if new_val > 1:
+                new_val = 1
+            return new_val
+        else:
+            return val
 
-    def get_focus(self, cntxt):
-        return 1 - self.constructs[Diligence].diligence / 12
-        
 
 class RandValDecider(EVDecider):
     

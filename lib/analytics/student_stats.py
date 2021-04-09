@@ -89,51 +89,87 @@ class StudentStatCalc:
         
         return sim_students
 
-    def get_mastery(self, sids, mastery_thres=0.9):
-        keep_state_fields = []
-        keep_attr_fields = []
-        drop_cols = ['domain_id', 'type', 'skills', 'cog', 'decider', 'state_fields', 'attribute_fields']
-
-        sample = pd.Series(self.db.students.find_one({"_id": {'$in':  sids}}))
-        drop_cols.extend([col for col in sample['state_fields'] if col not in keep_state_fields])
-        drop_cols.extend([col for col in sample['attribute_fields'] if col not in keep_attr_fields])
-        
-        presim_students = pd.DataFrame(self.db.students.find({"_id": {'$in':  sids}}))
-        sim_students = pd.DataFrame(self.db.finalsimstudents.find({"_id": {'$in':  sids}}))
-        sim_students.rename(columns={'skills': 'final skills', 
-                                     'total_attempts': 'final total attempts',
-                                     'total_success': 'final total success'}, inplace=True)
-        logger.debug("pre-sim students: %s" % str(presim_students.shape))
-        logger.debug("post-sim students: %s" % str(sim_students.shape))
-
-        sim_students = presim_students.merge(sim_students[['_id', 'final skills', 'final total attempts', 'final total success']], how='right', on=['_id'])
-        
-        val = list(sample['skills'].values())[0]
+    def get_mastery(self, stus, mastery_thres=0.9):
+        val = list(stus['skills'].iloc[0].values())[0] # Arbitrary skill parameter
         is_not_binary = (type(val) == int) or (type(val) == float)
         if is_not_binary:
             # Continuous skill
-            sim_students['pre-sim total mastery'] = sim_students.apply(lambda x: np.sum([1 if d >= mastery_thres else 0 for d in list(x['skills'].values())]), axis=1)
-            sim_students['pre-sim total skill'] = sim_students.apply(lambda x: np.sum(list(x['skills'].values())), axis=1)
-            sim_students['final-sim total mastery'] = sim_students.apply(lambda x: np.sum([1 if d >= mastery_thres else 0 for d in list(x['final skills'].values())]), axis=1)
-            sim_students['final-sim total skill'] = sim_students.apply(lambda x: np.sum(list(x['final skills'].values())), axis=1)
-            sim_students['total learning'] = sim_students['final-sim total skill'] - sim_students['pre-sim total skill'] 
-            sim_students['total mastered'] = sim_students['final-sim total mastery'] - sim_students['pre-sim total mastery'] 
+            out = pd.DataFrame(index=stus.index, columns=['total mastery', 'total skill'])
+            out['total mastery'] = stus.apply(lambda x: np.sum([1 if d >= mastery_thres else 0 for d in list(x['skills'].values())]), axis=1)
+            out['total skill'] = stus.apply(lambda x: np.sum(list(x['skills'].values())), axis=1)
         else:
             # Binary skill
             logger.warning("************* type is binary skills ***********")
-            sim_students['pre-sim total mastery'] = sim_students.apply(lambda x: np.sum(list(x['skills'].values())), axis=1)
-            sim_students['final-sim total mastery'] = sim_students.apply(lambda x: np.sum(list(x['final skills'].values())), axis=1)
+            out = pd.DataFrame(index=stus.index, columns=['total mastery'])
+            out['total mastery'] = stus.apply(lambda x: np.sum(list(x['skills'].values())), axis=1)
+            
 
-        sim_students['total skills'] = sim_students.apply(lambda x: len(list(x['skills'].values())), axis=1)
-        sim_students['pre-sim pct mastery'] = sim_students.apply(lambda x: x['pre-sim total mastery'] / x['total skills'], axis=1)
-        sim_students['final-sim pct mastery'] = sim_students.apply(lambda x: x['final-sim total mastery'] / x['total skills'], axis=1)
-        sim_students['final-sim total unmastered'] = sim_students.apply(lambda x: x['total skills'] - x['final-sim total mastery'], axis=1)
+        return out
 
-        sim_students.index = sim_students['_id']
-        sim_students.drop(['_id'], axis=1, inplace=True)
-        sim_students.drop(drop_cols, axis=1, inplace=True)
+    def calc_student_learning(self, presim, finalsim):
+        d = pd.DataFrame(index=presim.index, columns=['pres-sim total mastery', 'final-sim total mastery'])
+        d['pre-sim total mastery'] = presim['total mastery']
+        d['final-sim total mastery'] = finalsim['total mastery']
+        d['total mastered'] = finalsim['total mastery'] - presim['total mastery'] 
+        d['total skills'] = presim.apply(lambda x: len(list(x['skills'].values())), axis=1)
+        d['pre-sim pct mastery'] = d.apply(lambda x: x['pre-sim total mastery'] / x['total skills'], axis=1)
+        d['final-sim pct mastery'] = d.apply(lambda x: x['final-sim total mastery'] / x['total skills'], axis=1)
+        d['final-sim total unmastered'] = d['total skills'] - d['final-sim total mastery']
 
-        return sim_students
+
+        if 'total skill' in presim.columns:
+            logger.debug("Students have skill and mastery columns. Calculating change in total skill")
+            d['pre-sim total skill'] = presim['total skill']
+            d['final-sim total skill'] = finalsim['total skill']
+            d['total learning'] = d['final-sim total skill'] - d['pre-sim total skill'] 
+
+        return d
+        
+    # def get_mastery(self, sids, mastery_thres=0.9):
+        # keep_state_fields = []
+        # keep_attr_fields = []
+        # drop_cols = ['domain_id', 'type', 'skills', 'cog', 'decider', 'state_fields', 'attribute_fields']
+
+        # sample = pd.Series(self.db.students.find_one({"_id": {'$in':  sids}}))
+        # drop_cols.extend([col for col in sample['state_fields'] if col not in keep_state_fields])
+        # drop_cols.extend([col for col in sample['attribute_fields'] if col not in keep_attr_fields])
+        
+        # presim_students = pd.DataFrame(self.db.students.find({"_id": {'$in':  sids}}))
+        # sim_students = pd.DataFrame(self.db.finalsimstudents.find({"_id": {'$in':  sids}}))
+        # sim_students.rename(columns={'skills': 'final skills', 
+                                     # 'total_attempts': 'final total attempts',
+                                     # 'total_success': 'final total success'}, inplace=True)
+        # logger.debug("pre-sim students: %s" % str(presim_students.shape))
+        # logger.debug("post-sim students: %s" % str(sim_students.shape))
+
+        # sim_students = presim_students.merge(sim_students[['_id', 'final skills', 'final total attempts', 'final total success']], how='right', on=['_id'])
+        
+        # val = list(sample['skills'].values())[0]
+        # is_not_binary = (type(val) == int) or (type(val) == float)
+        # if is_not_binary:
+            # # Continuous skill
+            # sim_students['pre-sim total mastery'] = sim_students.apply(lambda x: np.sum([1 if d >= mastery_thres else 0 for d in list(x['skills'].values())]), axis=1)
+            # sim_students['pre-sim total skill'] = sim_students.apply(lambda x: np.sum(list(x['skills'].values())), axis=1)
+            # sim_students['final-sim total mastery'] = sim_students.apply(lambda x: np.sum([1 if d >= mastery_thres else 0 for d in list(x['final skills'].values())]), axis=1)
+            # sim_students['final-sim total skill'] = sim_students.apply(lambda x: np.sum(list(x['final skills'].values())), axis=1)
+            # sim_students['total learning'] = sim_students['final-sim total skill'] - sim_students['pre-sim total skill'] 
+            # sim_students['total mastered'] = sim_students['final-sim total mastery'] - sim_students['pre-sim total mastery'] 
+        # else:
+            # # Binary skill
+            # logger.warning("************* type is binary skills ***********")
+            # sim_students['pre-sim total mastery'] = sim_students.apply(lambda x: np.sum(list(x['skills'].values())), axis=1)
+            # sim_students['final-sim total mastery'] = sim_students.apply(lambda x: np.sum(list(x['final skills'].values())), axis=1)
+
+        # sim_students['total skills'] = sim_students.apply(lambda x: len(list(x['skills'].values())), axis=1)
+        # sim_students['pre-sim pct mastery'] = sim_students.apply(lambda x: x['pre-sim total mastery'] / x['total skills'], axis=1)
+        # sim_students['final-sim pct mastery'] = sim_students.apply(lambda x: x['final-sim total mastery'] / x['total skills'], axis=1)
+        # sim_students['final-sim total unmastered'] = sim_students.apply(lambda x: x['total skills'] - x['final-sim total mastery'], axis=1)
+
+        # sim_students.index = sim_students['_id']
+        # sim_students.drop(['_id'], axis=1, inplace=True)
+        # sim_students.drop(drop_cols, axis=1, inplace=True)
+
+        # return sim_students
 
     def decision_stats(self, sids):
         decisions = pd.DataFrame(self.db.decisions.find({"student_id": {'$in': sids}}))

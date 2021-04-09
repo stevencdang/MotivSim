@@ -6,6 +6,8 @@ import random
 import pickle
 import dill
 
+import pandas as pd
+
 from log_db import mongo
 
 from .learner import Learner
@@ -15,6 +17,7 @@ from log_db.learner_log import *
 
 
 logger = logging.getLogger(__name__)
+# logger.setLevel(logging.DEBUG)
 
 
 class ModularLearner(Learner):
@@ -172,15 +175,41 @@ class ModularLearner(Learner):
             
 
     def to_dict(self):
-        # self.skills = copy.deepcopy(self.cog.skills)
         d = super().to_dict()
         d['cog'] = self.cog.to_dict()
         d['decider'] = self.decider.to_dict()
-        # self.skills = self.cog.skills
         d['pickle'] = dill.dumps(self)
 
-        # return {"pickle": dill.dumps(self)}
         return  d
+
+    def to_dataframe(self, get_state_fields=False, get_attr_fields=False):
+        d = self.to_dict()
+        # Get decider attributes as student attributes
+        for attr in d['decider']['construct_attrs']:
+            d[attr] = d['decider'][attr]
+       
+        # Add cognition attribute as student attribute
+        if 'ability' in d['cog'].keys():
+            d['cog_ability'] = d['cog']['ability']
+
+        if not get_state_fields:
+            for f in d['state_fields']:
+                del d[f]
+            del d['state_fields']
+
+        if not get_attr_fields:
+            for f in d['attribute_fields']:
+                del d[f]
+            del d['attribute_fields']
+
+
+        # Remove unnecessary fields
+        del d['pickle']
+        del d['cog']
+        del d['decider']
+
+        return pd.Series(d, name=d['_id'])
+
     
     @staticmethod
     def from_dict(d):
